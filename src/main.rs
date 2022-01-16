@@ -47,7 +47,13 @@ fn run() -> Result<(), CliError> {
         stdin.read_line(&mut buffer).map_err(|io_error| CliError::IoError(io_error))?;
         let input = buffer.trim();
 
-        let tokens = lexer::to_tokens(input);
+        let tokens = match lexer::to_tokens(input) {
+            Ok(tokens) => tokens,
+            Err(message) => {
+                println!("cannot parse statement: {}", message);
+                continue
+            }
+        };
 
         match parser::parse_statement(tokens.iter()) {
             Ok(command) => {
@@ -76,7 +82,7 @@ fn run() -> Result<(), CliError> {
         //}
     };
     //table.db_close().unwrap();
-    //Ok(())
+    Ok(())
 }
 
 fn print_prompt() {

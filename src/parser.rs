@@ -68,8 +68,8 @@ where
         };
 
         let kind = match token.next() {
-            Some(Token::Integer) => ColumnType::Integer,
-            Some(Token::String) => ColumnType::String,
+            Some(Token::IntegerType) => ColumnType::Integer,
+            Some(Token::StringType) => ColumnType::String,
             Some(token) => return Err(format!("expected column type, got {:?}", token)),
             None => return Err("column type is not provided".to_string()),
         };

@@ -3,7 +3,7 @@
 - ✓ add basic lexer
 - ✓ add basic parser
 - ✓ add create/drop table parsing
-- allow strings, limit identificators to non-whitespaced chars
+- ✓ allow strings, limit identificators to non-whitespaced chars
 - allow 'int' name for columns?
 - parse insert into
 - parse select (without conditions)
@@ -15,6 +15,8 @@
 - execute select
 - execute update
 - execute delete (in-memory)
+- think of proper error handling
+- float values
 - allow store tables into files (may need to break this down) (straight bincode serialization)
 - load stored tables on launch
 - implement primary constraint (may just primary key flag, no general constraints)
