@@ -1,6 +1,5 @@
 #[derive(Debug, PartialEq)] // TODO: impl display to display in error messages
 pub enum Token {
-    Exit,
     LeftParenthesis,
     RightParenthesis,
     Comma,
@@ -79,7 +78,6 @@ fn parse_token(str_token: &str) -> Token {
     };
 
     match str_token {
-        ".exit" | ".quit" => Token::Exit,
         "(" => Token::LeftParenthesis,
         ")" => Token::RightParenthesis,
         "," => Token::Comma,

@@ -1,8 +1,11 @@
 use crate::table::ColumnType;
 
+pub enum MetaCommand {
+    Exit,
+}
+
 #[derive(Debug)]
 pub enum Command {
-    Exit,
     // Insert,
     // Select,
     // Update,

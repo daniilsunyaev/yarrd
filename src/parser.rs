@@ -1,4 +1,4 @@
-use crate::command::Command;
+use crate::command::{Command, MetaCommand};
 use crate::lexer::Token;
 use create::parse_create_statement;
 use drop::parse_drop_statement;
@@ -22,5 +22,16 @@ where
         Err(format!("parsed correct statement, but some excess tokens are present in the input: {:?}", remainder))
     } else {
         Ok(command)
+    }
+}
+
+pub fn parse_meta_command(input: &str) -> Result<Option<MetaCommand>, String> {
+    if input.starts_with('.') {
+        match input {
+            ".exit" | ".quit" => Ok(Some(MetaCommand::Exit)),
+            _ => Err(format!("unrecognized meta_command '{}'", input)),
+        }
+    } else {
+        Ok(None)
     }
 }

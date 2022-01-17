@@ -2,14 +2,12 @@ use std::io;
 use std::fmt;
 use std::io::Write;
 
+use crate::command::MetaCommand;
+
 mod table;
 mod lexer;
 mod command;
 mod parser;
-
-// enum MetaCommand {
-//     Exit,
-// }
 
 enum CliError {
     IoError(io::Error),
@@ -47,6 +45,15 @@ fn run() -> Result<(), CliError> {
         stdin.read_line(&mut buffer).map_err(|io_error| CliError::IoError(io_error))?;
         let input = buffer.trim();
 
+        match parser::parse_meta_command(input) {
+            Ok(Some(MetaCommand::Exit)) => break,
+            Ok(None) => { },
+            Err(message) => {
+                println!("error parsing meta command: {}", message);
+                continue
+            },
+        }
+
         let tokens = match lexer::to_tokens(input) {
             Ok(tokens) => tokens,
             Err(message) => {
@@ -61,13 +68,6 @@ fn run() -> Result<(), CliError> {
             },
             Err(error) => println!("error parsing statement: {}", error),
         }
-
-        //if input.starts_with('.') {
-        //    match parse_meta_command(input) {
-        //        Ok(MetaCommand::Exit) => break,
-        //        // Ok(command) => execute_meta_command(command)?,
-        //        Err(error) => println!("error parsing meta command: {}", error),
-        //    }
 
         //} else {
         //    match Statement::parse(input, &mut table) {
@@ -89,15 +89,6 @@ fn print_prompt() {
     print!("{}", PROMPT);
     io::stdout().flush().expect("error flushing the prompt");
 }
-
-//fn parse_meta_command(input: &str) -> Result<MetaCommand, String> {
-//    if input.starts_with(".exit") || input.starts_with(".quit") {
-//        Ok(MetaCommand::Exit)
-//    } else {
-//        Err(format!("unrecognized command '{}'", input))
-//    }
-//}
-
 
 // fn execute_meta_command(input: &str) -> Result<(), String> {
 //     Ok(())
