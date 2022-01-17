@@ -4,7 +4,8 @@
 - ✓ add basic parser
 - ✓ add create/drop table parsing
 - ✓ allow strings, limit identificators to non-whitespaced chars
-- allow 'int' name for columns?
+- ✗ allow 'int' name for columns?
+- exit metacommand
 - parse insert into
 - parse select (without conditions)
 - parse where

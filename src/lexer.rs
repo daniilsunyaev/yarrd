@@ -1,5 +1,3 @@
-use crate::command::Command;
-
 #[derive(Debug, PartialEq)] // TODO: impl display to display in error messages
 pub enum Token {
     Exit,
