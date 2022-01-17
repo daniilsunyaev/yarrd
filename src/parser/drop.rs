@@ -6,9 +6,9 @@ where
     I: Iterator<Item = &'a Token> + std::fmt::Debug,
 {
     match token.next() {
-        Some(Token::Table) => { parse_drop_table_clause(token) },
-        None => return Err("drop type is not provided".to_string()),
-        _ => return Err("unknown drop type".to_string()),
+        Some(Token::Table) => parse_drop_table_clause(token),
+        None => Err("drop type is not provided".to_string()),
+        _ => Err("unknown drop type".to_string()),
     }
 }
 

@@ -7,9 +7,9 @@ where
     I: Iterator<Item = &'a Token> + std::fmt::Debug,
 {
     match token.next() {
-        Some(Token::Table) => { parse_create_table_clause(token) },
-        None => return Err("create type is not provided".to_string()),
-        _ => return Err("unknown create type".to_string()),
+        Some(Token::Table) => parse_create_table_clause(token),
+        None => Err("create type is not provided".to_string()),
+        _ => Err("unknown create type".to_string()),
     }
 }
 

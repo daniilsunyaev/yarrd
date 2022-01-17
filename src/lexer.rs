@@ -20,10 +20,7 @@ pub enum Token {
 
 impl Token {
     pub fn is_junk(&self) -> bool {
-        match self {
-            Token::JunkIdentificator(_) => true,
-            _ => false,
-        }
+        matches!(self, Token::JunkIdentificator(_))
     }
 }
 
@@ -93,13 +90,11 @@ fn parse_token(str_token: &str) -> Token {
         _ => {
             if let Ok(number) = str_token.parse::<i64>() {
                 Token::IntegerValue(number)
+            } else if str_token.chars().next().unwrap().is_alphabetic() &&
+                str_token.chars().all(|c| c.is_alphanumeric() || c == '_') {
+                Token::Identificator(str_token.to_string())
             } else {
-                if str_token.chars().nth(0).unwrap().is_alphabetic() &&
-                    str_token.chars().all(|c| c.is_alphanumeric() || c == '_') {
-                    Token::Identificator(str_token.to_string())
-                } else {
-                    Token::JunkIdentificator(str_token.to_string())
-                }
+                Token::JunkIdentificator(str_token.to_string())
             }
         }
     }

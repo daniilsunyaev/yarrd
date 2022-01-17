@@ -26,9 +26,8 @@ impl fmt::Display for CliError {
 const PROMPT: &str = "yarrd> ";
 
 fn main() {
-    match run() {
-        Err(error) => eprintln!("error: {}", error),
-        Ok(_) => { },
+    if let Err(error) = run() {
+        eprintln!("error: {}", error);
     }
 }
 
@@ -42,7 +41,7 @@ fn run() -> Result<(), CliError> {
         buffer.clear();
         print_prompt();
 
-        stdin.read_line(&mut buffer).map_err(|io_error| CliError::IoError(io_error))?;
+        stdin.read_line(&mut buffer).map_err(CliError::IoError)?;
         let input = buffer.trim();
 
         match parser::parse_meta_command(input) {
