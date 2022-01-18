@@ -7,8 +7,8 @@
 - ✗ allow 'int' name for columns?
 - ✓ exit metacommand
 - ✓ parse insert into
-- parse select (without conditions)
-- parse where
+- ✓ parse select (without conditions)
+- ✓ parse where
 - parse update
 - parse delete
 - execute create table
@@ -24,6 +24,7 @@
 - implement custom serializer for rows
 - introduce page alignment
 - store hashtable for primary keys at the beginning of file or store those in root database file
+- implement limit
 - implement joins
 - WAL
 - restore from journal

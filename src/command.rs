@@ -15,6 +15,7 @@ pub enum Command {
     Select {
         table_name: SqlValue,
         column_names: Vec<SelectColumnName>,
+        where_clause: Option<WhereClause>,
     },
     // Update,
     // Delete,
@@ -25,6 +26,22 @@ pub enum Command {
     DropTable {
         table_name: SqlValue,
     }
+}
+
+#[derive(Debug)]
+pub struct WhereClause {
+    pub left_value: SqlValue,
+    pub right_value: SqlValue,
+    pub operator: CmpOperator,
+}
+
+#[derive(Debug)]
+pub enum CmpOperator {
+    Less,
+    Greater,
+    Equals,
+    LessEquals,
+    GreaterEquals,
 }
 
 #[derive(Debug)]

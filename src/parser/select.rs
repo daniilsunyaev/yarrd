@@ -1,5 +1,6 @@
 use crate::command::{Command, SelectColumnName};
 use crate::lexer::Token;
+use crate::parser::where_clause::parse_where_clause;
 
 pub fn parse_select_statement<'a, I>(mut token: I) -> Result<Command, String>
 where
@@ -13,7 +14,14 @@ where
         None => return Err("no table name is provided".to_string()),
     };
 
-    Ok(Command::Select { column_names, table_name })
+    match token.next() {
+        Some(Token::Where) => {
+            let where_clause = parse_where_clause(token)?;
+            Ok(Command::Select { column_names, table_name, where_clause: Some(where_clause) })
+        },
+        Some(token) => Err(format!("expected WHERE or end of statement, got {:?}", token)),
+        None => Ok(Command::Select { column_names, table_name, where_clause: None })
+    }
 }
 
 fn parse_column_names<'a, I>(mut token: I) -> Result<Vec<SelectColumnName>, String>

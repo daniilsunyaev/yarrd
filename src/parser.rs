@@ -9,6 +9,7 @@ mod create;
 mod drop;
 mod insert;
 mod select;
+mod where_clause;
 
 pub fn parse_statement<'a, I>(mut token: I) -> Result<Command, String>
 where
@@ -81,6 +82,20 @@ mod tests {
                 Token::Value(SqlValue::String("first_name".into())), Token::Comma,
                 Token::Value(SqlValue::Identificator("id".into())),
                 Token::From,  Token::Value(SqlValue::Identificator("table_name".into())),
+           ];
+
+        assert!(parse_statement(input.iter()).is_ok());
+    }
+
+    #[test]
+    fn select_columns_where() {
+        let input = vec![
+                Token::Select,
+                Token::Value(SqlValue::String("first_name".into())), Token::Comma,
+                Token::Value(SqlValue::Identificator("id".into())),
+                Token::From,  Token::Value(SqlValue::Identificator("table_name".into())),
+                Token::Where, Token::Value(SqlValue::String("id".into())), Token::LessEquals,
+                Token::Value(SqlValue::Integer(10))
            ];
 
         assert!(parse_statement(input.iter()).is_ok());
