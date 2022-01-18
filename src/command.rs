@@ -22,7 +22,10 @@ pub enum Command {
         field_assignments: Vec<FieldAssignment>,
         where_clause: Option<WhereClause>,
     },
-    // Delete,
+    Delete {
+        table_name: SqlValue,
+        where_clause: Option<WhereClause>,
+    },
     CreateTable {
         table_name: SqlValue,
         columns: Vec<ColumnDefinition>,

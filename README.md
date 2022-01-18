@@ -10,7 +10,7 @@
 - ✓ parse select (without conditions)
 - ✓ parse where
 - ✓ parse update
-- parse delete
+- ✓ parse delete
 - execute create table
 - execute drop table
 - execute select
@@ -19,6 +19,7 @@
 - add Null
 - think of proper error handling
 - float values
+- allow capsed keywords
 - extract table name, column name parsing to a method
 - allow store tables into files (may need to break this down) (straight bincode serialization)
 - load stored tables on launch
@@ -26,6 +27,7 @@
 - implement custom serializer for rows
 - introduce page alignment
 - store hashtable for primary keys at the beginning of file or store those in root database file
+- maybe use peek and rewrite parser in more of decoupeled manner?
 - implement limit
 - implement joins
 - WAL
