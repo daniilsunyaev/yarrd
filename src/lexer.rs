@@ -4,18 +4,25 @@ pub enum Token {
     RightParenthesis,
     Comma,
     Insert,
+    Into,
     Select,
     Update,
     Delete,
     Create,
     Drop,
     Table,
-    IntegerType,
+    Values,
+    IntegerType, // TODO: maybe extract types to separate enum
     StringType,
-    StringValue(String),
-    IntegerValue(i64),
-    Identificator(String),
+    Value(SqlValue),
     JunkIdentificator(String),
+}
+
+#[derive(Debug, PartialEq, Clone)] // TODO: impl display to display in error messages
+pub enum SqlValue {
+    String(String),
+    Integer(i64),
+    Identificator(String),
 }
 
 impl Token {
@@ -71,7 +78,7 @@ pub fn to_tokens(input: &str) -> Result<Vec<Token>, String> {
 
 fn parse_token(str_token: &str) -> Token {
     if str_token.starts_with('"') && str_token.ends_with('"') {
-        return Token::StringValue(str_token[1..str_token.len()-1].to_string())
+        return Token::Value(SqlValue::String(str_token[1..str_token.len()-1].to_string()))
     };
 
     match str_token {
@@ -79,24 +86,28 @@ fn parse_token(str_token: &str) -> Token {
         ")" => Token::RightParenthesis,
         "," => Token::Comma,
         "insert" => Token::Insert,
+        "into" => Token::Into,
         "select" => Token::Select,
         "update" => Token::Update,
         "delete" => Token::Delete,
         "create" => Token::Create,
         "drop" => Token::Drop,
         "table" => Token::Table,
+        "values" => Token::Values,
         "int" => Token::IntegerType,
         "string" => Token::StringType,
-        _ => {
-            if let Ok(number) = str_token.parse::<i64>() {
-                Token::IntegerValue(number)
-            } else if str_token.chars().next().unwrap().is_alphabetic() &&
-                str_token.chars().all(|c| c.is_alphanumeric() || c == '_') {
-                Token::Identificator(str_token.to_string())
-            } else {
-                Token::JunkIdentificator(str_token.to_string())
-            }
-        }
+        _ => parse_sql_value(str_token).map(Token::Value)
+            .unwrap_or_else(|| Token::JunkIdentificator(str_token.to_string())),
+    }
+}
+
+fn parse_sql_value(str_token: &str) -> Option<SqlValue> {
+    if let Ok(number) = str_token.parse::<i64>() {
+        Some(SqlValue::Integer(number))
+    } else if str_token.chars().all(|c| c.is_alphanumeric() || c == '_') {
+        Some(SqlValue::Identificator(str_token.to_string()))
+    } else {
+        None
     }
 }
 
@@ -109,21 +120,21 @@ mod tests {
         let valid_input = "create table,table_name (row column type int string (,) ";
         let another_valid_input = "token";
         let invalid_input = "create (row \"column, type\" int string\" yy ";
-        let another_invalid_input = "123abc";
+        let another_invalid_input = ";123abc";
 
         assert!(to_tokens(valid_input).is_ok());
         assert!(to_tokens(another_valid_input).is_ok());
         assert_eq!(
             to_tokens(valid_input).unwrap(),
             vec![
-                Token::Create, Token::Table, Token::Comma, Token::Identificator("table_name".into()),
-                Token::LeftParenthesis, Token::Identificator("row".into()),
-                Token::Identificator("column".into()), Token::Identificator("type".into()),
+                Token::Create, Token::Table, Token::Comma, Token::Value(SqlValue::Identificator("table_name".into())),
+                Token::LeftParenthesis, Token::Value(SqlValue::Identificator("row".into())),
+                Token::Value(SqlValue::Identificator("column".into())), Token::Value(SqlValue::Identificator("type".into())),
                 Token::IntegerType, Token::StringType, Token::LeftParenthesis,
                 Token::Comma, Token::RightParenthesis
             ]
         );
-        assert_eq!(to_tokens(another_valid_input).unwrap(), vec![Token::Identificator("token".to_string())]);
+        assert_eq!(to_tokens(another_valid_input).unwrap(), vec![Token::Value(SqlValue::Identificator("token".to_string()))]);
 
         println!("{:?}", to_tokens(another_invalid_input));
         assert!(to_tokens(invalid_input).is_err());
@@ -138,9 +149,9 @@ mod tests {
         assert_eq!(
             to_tokens(valid_input).unwrap(),
             vec![
-                Token::Create, Token::LeftParenthesis, Token::Identificator("row".into()),
-                Token::StringValue("column, type".to_string()), Token::IntegerType,
-                Token::IntegerValue(-421), Token::StringType, Token::StringValue(" ; ".into())
+                Token::Create, Token::LeftParenthesis, Token::Value(SqlValue::Identificator("row".into())),
+                Token::Value(SqlValue::String("column, type".to_string())), Token::IntegerType,
+                Token::Value(SqlValue::Integer(-421)), Token::StringType, Token::Value(SqlValue::String(" ; ".into()))
             ]
         )
     }

@@ -1,4 +1,5 @@
 use crate::table::ColumnType;
+use crate::lexer::SqlValue;
 
 pub enum MetaCommand {
     Exit,
@@ -6,21 +7,25 @@ pub enum MetaCommand {
 
 #[derive(Debug)]
 pub enum Command {
-    // Insert,
+    InsertInto {
+        table_name: SqlValue,
+        column_names: Option<Vec<SqlValue>>,
+        values: Vec<SqlValue>,
+    },
     // Select,
     // Update,
     // Delete,
     CreateTable {
-        table_name: String,
+        table_name: SqlValue,
         columns: Vec<ColumnDefinition>,
     },
     DropTable {
-        table_name: String,
+        table_name: SqlValue,
     }
 }
 
 #[derive(Debug)]
 pub struct ColumnDefinition {
-    pub name: String,
+    pub name: SqlValue,
     pub kind: ColumnType,
 }

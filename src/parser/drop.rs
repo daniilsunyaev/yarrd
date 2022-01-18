@@ -1,5 +1,6 @@
 use crate::command::Command;
 use crate::lexer::Token;
+use crate::lexer::SqlValue;
 
 pub fn parse_drop_statement<'a, I>(mut token: I) -> Result<Command, String>
 where
@@ -17,8 +18,8 @@ where
     I: Iterator<Item = &'a Token> + std::fmt::Debug,
 {
 
-    let table_name = match token.next() {
-        Some(Token::Identificator(name)) => name.clone(),
+    let table_name: SqlValue = match token.next() {
+        Some(Token::Value(name)) => name.clone(),
         _ => return Err(format!("expected identificator as a table name, got {:?}", token)),
     };
 

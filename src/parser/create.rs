@@ -19,7 +19,7 @@ where
 {
 
     let table_name = match token.next() {
-        Some(Token::Identificator(name)) => name.clone(),
+        Some(Token::Value(name)) => name.clone(),
         Some(token) => return Err(format!("expected identificator as a table name, got {:?}", token)),
         None => return Err("no table name is provided".to_string()),
     };
@@ -43,7 +43,7 @@ where
 
     loop {
         let name = match token.next() {
-            Some(Token::Identificator(name)) => name.clone(),
+            Some(Token::Value(name)) => name.clone(),
             Some(token) => return Err(format!("expected column name, got {:?}", token)),
             None => return Err("column name is not provided".to_string()),
         };
