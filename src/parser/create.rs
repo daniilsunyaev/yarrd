@@ -7,13 +7,13 @@ where
     I: Iterator<Item = &'a Token> + std::fmt::Debug,
 {
     match token.next() {
-        Some(Token::Table) => parse_create_table_clause(token),
+        Some(Token::Table) => parse_create_table_statement(token),
         None => Err("create type is not provided".to_string()),
         _ => Err("unknown create type".to_string()),
     }
 }
 
-fn parse_create_table_clause<'a, I>(mut token: I) -> Result<Command, String>
+fn parse_create_table_statement<'a, I>(mut token: I) -> Result<Command, String>
 where
     I: Iterator<Item = &'a Token> + std::fmt::Debug,
 {
@@ -25,7 +25,6 @@ where
     };
 
     let column_definitions = parse_column_definitions(token)?;
-    println!("cd {:?}", column_definitions);
     Ok(Command::CreateTable { table_name, columns: column_definitions })
 }
 

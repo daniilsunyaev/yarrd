@@ -12,7 +12,10 @@ pub enum Command {
         column_names: Option<Vec<SqlValue>>,
         values: Vec<SqlValue>,
     },
-    // Select,
+    Select {
+        table_name: SqlValue,
+        column_names: Vec<SelectColumnName>,
+    },
     // Update,
     // Delete,
     CreateTable {
@@ -25,7 +28,13 @@ pub enum Command {
 }
 
 #[derive(Debug)]
+pub enum SelectColumnName {
+    Name(SqlValue),
+    AllColumns
+}
+
+#[derive(Debug)]
 pub struct ColumnDefinition {
     pub name: SqlValue,
-    pub kind: ColumnType,
+    pub kind: ColumnType, // TODO: maybe use token instead, transition to sematic types should be on exec stage?
 }

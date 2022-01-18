@@ -3,10 +3,12 @@ use crate::lexer::Token;
 use create::parse_create_statement;
 use drop::parse_drop_statement;
 use insert::parse_insert_statement;
+use select::parse_select_statement;
 
 mod create;
 mod drop;
 mod insert;
+mod select;
 
 pub fn parse_statement<'a, I>(mut token: I) -> Result<Command, String>
 where
@@ -16,6 +18,7 @@ where
         Some(Token::Create) => parse_create_statement(&mut token)?,
         Some(Token::Drop) => parse_drop_statement(&mut token)?,
         Some(Token::Insert) => parse_insert_statement(&mut token)?,
+        Some(Token::Select) => parse_select_statement(&mut token)?,
         _ => return Err("cannot parse statement".to_string()),
     };
 
@@ -68,6 +71,40 @@ mod tests {
                 Token::IntegerType, Token::RightParenthesis,
            ];
 
+        assert!(parse_statement(input.iter()).is_ok());
+    }
+
+    #[test]
+    fn select_columns() {
+        let input = vec![
+                Token::Select,
+                Token::Value(SqlValue::String("first_name".into())), Token::Comma,
+                Token::Value(SqlValue::Identificator("id".into())),
+                Token::From,  Token::Value(SqlValue::Identificator("table_name".into())),
+           ];
+
+        assert!(parse_statement(input.iter()).is_ok());
+    }
+
+    #[test]
+    fn select_all_columns() {
+        let input = vec![
+                Token::Select, Token::AllColumns,
+                Token::From,  Token::Value(SqlValue::Identificator("table_name".into())),
+           ];
+
+        println!("{:?}", parse_statement(input.iter()));
+        assert!(parse_statement(input.iter()).is_ok());
+    }
+
+    #[test]
+    fn select_all_with_separate_columns() {
+        let input = vec![
+                Token::Select, Token::AllColumns, Token::Comma, Token::Value(SqlValue::Integer(12)),
+                Token::From,  Token::Value(SqlValue::Identificator("table_name".into())),
+           ];
+
+        println!("{:?}", parse_statement(input.iter()));
         assert!(parse_statement(input.iter()).is_ok());
     }
 }

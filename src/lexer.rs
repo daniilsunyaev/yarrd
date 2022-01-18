@@ -6,6 +6,8 @@ pub enum Token {
     Insert,
     Into,
     Select,
+    AllColumns,
+    From,
     Update,
     Delete,
     Create,
@@ -46,7 +48,7 @@ pub fn to_tokens(input: &str) -> Result<Vec<Token>, String> {
                     }
                     inside_string = !inside_string;
                 },
-                '(' | ')' | ',' | ' ' | ';' => {
+                '(' | ')' | ',' | ' ' | ';' | '*' => {
                     if !inside_string {
                         separate_at.push(i);
                         separate_at.push(i+1);
@@ -85,9 +87,11 @@ fn parse_token(str_token: &str) -> Token {
         "(" => Token::LeftParenthesis,
         ")" => Token::RightParenthesis,
         "," => Token::Comma,
+        "*" => Token::AllColumns,
         "insert" => Token::Insert,
         "into" => Token::Into,
         "select" => Token::Select,
+        "from" => Token::From,
         "update" => Token::Update,
         "delete" => Token::Delete,
         "create" => Token::Create,
@@ -118,7 +122,7 @@ mod tests {
     #[test]
     fn token_parse() {
         let valid_input = "create table,table_name (row column type int string (,) ";
-        let another_valid_input = "token";
+        let another_valid_input = "token*from";
         let invalid_input = "create (row \"column, type\" int string\" yy ";
         let another_invalid_input = ";123abc";
 
@@ -134,7 +138,8 @@ mod tests {
                 Token::Comma, Token::RightParenthesis
             ]
         );
-        assert_eq!(to_tokens(another_valid_input).unwrap(), vec![Token::Value(SqlValue::Identificator("token".to_string()))]);
+        assert_eq!(to_tokens(another_valid_input).unwrap(),
+            vec![Token::Value(SqlValue::Identificator("token".to_string())), Token::AllColumns, Token::From]);
 
         println!("{:?}", to_tokens(another_invalid_input));
         assert!(to_tokens(invalid_input).is_err());
