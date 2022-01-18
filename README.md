@@ -9,15 +9,17 @@
 - ✓ parse insert into
 - ✓ parse select (without conditions)
 - ✓ parse where
-- parse update
+- ✓ parse update
 - parse delete
 - execute create table
 - execute drop table
 - execute select
 - execute update
 - execute delete (in-memory)
+- add Null
 - think of proper error handling
 - float values
+- extract table name, column name parsing to a method
 - allow store tables into files (may need to break this down) (straight bincode serialization)
 - load stored tables on launch
 - implement primary constraint (may just primary key flag, no general constraints)

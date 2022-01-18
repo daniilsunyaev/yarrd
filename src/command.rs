@@ -17,7 +17,11 @@ pub enum Command {
         column_names: Vec<SelectColumnName>,
         where_clause: Option<WhereClause>,
     },
-    // Update,
+    Update {
+        table_name: SqlValue,
+        field_assignments: Vec<FieldAssignment>,
+        where_clause: Option<WhereClause>,
+    },
     // Delete,
     CreateTable {
         table_name: SqlValue,
@@ -54,4 +58,10 @@ pub enum SelectColumnName {
 pub struct ColumnDefinition {
     pub name: SqlValue,
     pub kind: ColumnType, // TODO: maybe use token instead, transition to sematic types should be on exec stage?
+}
+
+#[derive(Debug)]
+pub struct FieldAssignment {
+    pub column_name: SqlValue,
+    pub value: SqlValue,
 }
