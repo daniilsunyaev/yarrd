@@ -11,7 +11,7 @@
 - ✓ parse where
 - ✓ parse update
 - ✓ parse delete
-- execute create table
+- ✓ execute create table
 - execute drop table
 - execute select
 - execute update

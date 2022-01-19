@@ -1,3 +1,5 @@
+use std::fmt;
+
 #[derive(Debug, PartialEq)] // TODO: impl display to display in error messages
 pub enum Token {
     LeftParenthesis,
@@ -27,11 +29,20 @@ pub enum Token {
     JunkIdentificator(String),
 }
 
-#[derive(Debug, PartialEq, Clone)] // TODO: impl display to display in error messages
+#[derive(Debug, PartialEq, Clone)] // TODO: display instead of debug in error messages
 pub enum SqlValue {
     String(String),
     Integer(i64),
     Identificator(String),
+}
+
+impl fmt::Display for SqlValue {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::String(string) | Self::Identificator(string) => write!(f, "{}", string),
+            Self::Integer(integer) => write!(f, "{}", integer),
+        }
+    }
 }
 
 impl Token {

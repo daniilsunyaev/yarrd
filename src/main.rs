@@ -8,6 +8,7 @@ mod table;
 mod lexer;
 mod command;
 mod parser;
+mod database;
 
 enum CliError {
     IoError(io::Error),

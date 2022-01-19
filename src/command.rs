@@ -1,38 +1,9 @@
 use crate::table::ColumnType;
 use crate::lexer::SqlValue;
+use crate::database::Database;
 
 pub enum MetaCommand {
     Exit,
-}
-
-#[derive(Debug)]
-pub enum Command {
-    InsertInto {
-        table_name: SqlValue,
-        column_names: Option<Vec<SqlValue>>,
-        values: Vec<SqlValue>,
-    },
-    Select {
-        table_name: SqlValue,
-        column_names: Vec<SelectColumnName>,
-        where_clause: Option<WhereClause>,
-    },
-    Update {
-        table_name: SqlValue,
-        field_assignments: Vec<FieldAssignment>,
-        where_clause: Option<WhereClause>,
-    },
-    Delete {
-        table_name: SqlValue,
-        where_clause: Option<WhereClause>,
-    },
-    CreateTable {
-        table_name: SqlValue,
-        columns: Vec<ColumnDefinition>,
-    },
-    DropTable {
-        table_name: SqlValue,
-    }
 }
 
 #[derive(Debug)]
@@ -67,4 +38,59 @@ pub struct ColumnDefinition {
 pub struct FieldAssignment {
     pub column_name: SqlValue,
     pub value: SqlValue,
+}
+
+#[derive(Debug)]
+pub enum Command {
+    InsertInto {
+        table_name: SqlValue,
+        column_names: Option<Vec<SqlValue>>,
+        values: Vec<SqlValue>,
+    },
+    Select {
+        table_name: SqlValue,
+        column_names: Vec<SelectColumnName>,
+        where_clause: Option<WhereClause>,
+    },
+    Update {
+        table_name: SqlValue,
+        field_assignments: Vec<FieldAssignment>,
+        where_clause: Option<WhereClause>,
+    },
+    Delete {
+        table_name: SqlValue,
+        where_clause: Option<WhereClause>,
+    },
+    CreateTable {
+        table_name: SqlValue,
+        columns: Vec<ColumnDefinition>,
+    },
+    DropTable {
+        table_name: SqlValue,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn create_table() {
+        let mut database = Database::new();
+        let create_table = Command::CreateTable {
+            table_name: SqlValue::Identificator("users".to_string()),
+            columns: vec![
+                ColumnDefinition {
+                    name: SqlValue::Identificator("id".to_string()),
+                    kind: ColumnType::Integer,
+                },
+                ColumnDefinition {
+                    name: SqlValue::String("name full".to_string()),
+                    kind: ColumnType::String,
+                },
+            ],
+        };
+
+        assert!(database.execute(create_table).is_ok());
+    }
 }
