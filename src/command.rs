@@ -75,7 +75,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn create_table() {
+    fn create_and_drop_table() {
         let mut database = Database::new();
         let create_table = Command::CreateTable {
             table_name: SqlValue::Identificator("users".to_string()),
@@ -92,5 +92,21 @@ mod tests {
         };
 
         assert!(database.execute(create_table).is_ok());
+
+        let drop_table = Command::DropTable {
+            table_name: SqlValue::Identificator("users".to_string()),
+        };
+
+        assert!(database.execute(drop_table).is_ok());
+    }
+
+    #[test]
+    fn drop_non_existing_table() {
+        let mut database = Database::new();
+        let drop_table = Command::DropTable {
+            table_name: SqlValue::Identificator("users".to_string()),
+        };
+
+        assert!(database.execute(drop_table).is_err());
     }
 }
