@@ -1,8 +1,9 @@
 use std::collections::HashMap;
 
-use crate::command::{Command, ColumnDefinition};
+use crate::command::{Command, ColumnDefinition, WhereClause, SelectColumnName};
 use crate::lexer::SqlValue;
 use crate::table::Table;
+use crate::row::Row;
 
 pub struct Database {
     tables: HashMap<String, Table>,
@@ -17,6 +18,10 @@ impl Database {
         match command {
             Command::CreateTable { table_name, columns } => self.create_table(table_name, columns),
             Command::DropTable { table_name } => self.drop_table(table_name),
+            Command::Select { table_name, column_names, where_clause } => {
+                println!("{:?}", self.select_rows(table_name, column_names, where_clause)?);
+                Ok(())
+            },
             _ => Err(format!("unrecognized command {:?}", command)),
         }
     }
@@ -41,5 +46,15 @@ impl Database {
             None => Err(format!("table '{}' does not exist", table_name_string)),
             Some(_) => Ok(())
         }
+    }
+
+    fn select_rows(&self, table_name: SqlValue, column_names: Vec<SelectColumnName>, where_clause: Option<WhereClause>) -> Result<Vec<Row>, String> {
+        let table_name_string = table_name.to_string();
+        let table = match self.tables.get(table_name_string.as_str()) {
+            None => return Err(format!("table '{}' does not exist", table_name_string)),
+            Some(existing_table) => existing_table,
+        };
+
+        table.select(column_names, where_clause)
     }
 }

@@ -109,4 +109,38 @@ mod tests {
 
         assert!(database.execute(drop_table).is_err());
     }
+
+    #[test]
+    fn select_from_table() {
+        let mut database = Database::new();
+        let create_table = Command::CreateTable {
+            table_name: SqlValue::Identificator("users".to_string()),
+            columns: vec![
+                ColumnDefinition {
+                    name: SqlValue::Identificator("id".to_string()),
+                    kind: ColumnType::Integer,
+                }
+            ],
+        };
+        database.execute(create_table);
+
+        let select_from_table = Command::Select {
+            table_name: SqlValue::Identificator("users".to_string()),
+            column_names: vec![SelectColumnName::AllColumns, SelectColumnName::Name(SqlValue::Identificator("id".to_string()))],
+            where_clause: None,
+        };
+        let select_result = database.execute(select_from_table);
+
+        assert!(select_result.is_ok());
+
+        // assert_eq!(select_result.unwrap().first().get(0), 1)
+
+        //let select_from_table = Command::Select {
+        //    table_name: SqlValue::Identificator("users".to_string()),
+        //    column_names: vec![SelectColumnName::Name(SqlValue::Identificator("ip".to_string()))],
+        //    where_clause: None,
+        //};
+
+        //assert!(database.execute(select_from_table).is_err());
+    }
 }

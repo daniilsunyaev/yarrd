@@ -12,8 +12,10 @@
 - ✓ parse update
 - ✓ parse delete
 - ✓ execute create table
-- execute drop table
-- execute select
+- ✓ execute drop table
+- ✓ execute select
+- execute select where
+- execute insert
 - execute update
 - execute delete (in-memory)
 - add Null
@@ -28,6 +30,7 @@
 - introduce page alignment
 - store hashtable for primary keys at the beginning of file or store those in root database file
 - maybe use peek and rewrite parser in more of decoupeled manner?
+- add table column names -> column offset hashmap
 - implement limit
 - implement joins
 - WAL

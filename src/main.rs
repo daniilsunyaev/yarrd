@@ -9,6 +9,7 @@ mod lexer;
 mod command;
 mod parser;
 mod database;
+mod row; // TODO: maybe put it inside database or table?
 
 enum CliError {
     IoError(io::Error),

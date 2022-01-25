@@ -166,7 +166,6 @@ mod tests {
         assert_eq!(to_tokens(another_valid_input).unwrap(),
             vec![Token::Value(SqlValue::Identificator("token".to_string())), Token::AllColumns, Token::From]);
 
-        println!("{:?}", to_tokens(another_invalid_input));
         assert!(to_tokens(invalid_input).is_err());
         assert!(to_tokens(another_invalid_input).is_err());
     }
