@@ -1,5 +1,3 @@
-use std::convert::From;
-
 use crate::lexer::SqlValue;
 use crate::table::ColumnType;
 

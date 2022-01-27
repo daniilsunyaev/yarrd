@@ -14,7 +14,7 @@
 - ✓ execute create table
 - ✓ execute drop table
 - ✓ execute select
-- execute select where
+- ✓ execute select where
 - execute insert
 - execute update
 - execute delete (in-memory)

@@ -8,6 +8,7 @@ pub enum Token {
     Less,
     Greater,
     Equals,
+    NotEquals,
     LessEquals,
     GreaterEquals,
     Insert,
@@ -103,6 +104,7 @@ fn parse_token(str_token: &str) -> Token {
 
     match str_token {
         "=" => Token::Equals,
+        "<>" => Token::NotEquals,
         ">" => Token::Greater,
         "<" => Token::Less,
         ">=" => Token::GreaterEquals,

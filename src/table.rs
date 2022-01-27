@@ -10,8 +10,8 @@ pub enum ColumnType {
 
 #[derive(Debug)]
 pub struct Table {
-    name: String,
-    column_types: Vec<ColumnType>,
+    pub name: String,
+    pub column_types: Vec<ColumnType>,
     column_names: Vec<String>,
     rows: Vec<Vec<SqlValue>>,
 }
@@ -33,16 +33,23 @@ impl Table {
 
     pub fn select(&self, column_names: Vec<SelectColumnName>, where_clause: Option<WhereClause>) -> Result<Vec<Row>, String> {
         let mut result_rows = vec![];
+        let row_fits_where_clause = match &where_clause {
+            None => Box::new(|_| Ok(true)),
+            Some(where_clause) => where_clause.build_filter(self),
+        };
 
         for i in 0..self.rows.len() {
             let row = &self.rows[i];
+            if !row_fits_where_clause(row)? { continue };
+
             let mut column_values: Vec<SqlValue> = vec![];
             let mut column_types: Vec<ColumnType> = vec![];
 
             for select_column_name in &column_names {
                 match select_column_name {
                     SelectColumnName::Name(column_name) => {
-                        let column_index = self.column_index(column_name.to_string())?;
+                        let column_index = self.column_index(&column_name.to_string())
+                            .ok_or(format!("column {} does not exist", column_name))?;
                         let column_value = row.get(column_index)
                             .ok_or(format!("table {} does not have a column with index {}", self.name, column_index))?;
                         let column_type = self.column_types.get(column_index)
@@ -66,10 +73,9 @@ impl Table {
     }
 
     // TODO: add hashmap of name -> indices to avoid names scanning
-    pub fn column_index(&self, column_name: String) -> Result<usize, String> {
+    pub fn column_index(&self, column_name: &str) -> Option<usize> {
         self.column_names.iter()
-            .position(|table_column_name| column_name.eq(table_column_name))
-            .ok_or(format!("column {} does not exist", column_name))
+            .position(|table_column_name| table_column_name.eq(column_name))
     }
 
     // fn page_number(row: &Row) -> Option<uint> {
