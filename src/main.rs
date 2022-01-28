@@ -10,6 +10,7 @@ mod command;
 mod parser;
 mod database;
 mod row; // TODO: maybe put it inside database or table?
+mod where_clause;
 
 enum CliError {
     IoError(io::Error),

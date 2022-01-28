@@ -1,4 +1,5 @@
-use crate::command::{ColumnDefinition, WhereClause, SelectColumnName};
+use crate::command::{ColumnDefinition, SelectColumnName};
+use crate::where_clause::WhereClause;
 use crate::lexer::SqlValue;
 use crate::row::Row;
 

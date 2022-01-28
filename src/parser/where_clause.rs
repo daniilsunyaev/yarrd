@@ -1,4 +1,4 @@
-use crate::command::{WhereClause, CmpOperator};
+use crate::where_clause::{WhereClause, CmpOperator};
 use crate::lexer::Token;
 
 pub fn parse_where_clause<'a, I>(mut token: I) -> Result<WhereClause, String>
@@ -13,6 +13,7 @@ where
 
     let operator = match token.next() {
         Some(Token::Equals) => CmpOperator::Equals,
+        Some(Token::NotEquals) => CmpOperator::NotEquals,
         Some(Token::Less) => CmpOperator::Less,
         Some(Token::Greater) => CmpOperator::Greater,
         Some(Token::LessEquals) => CmpOperator::LessEquals,

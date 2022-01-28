@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
-use crate::command::{Command, ColumnDefinition, WhereClause, SelectColumnName};
+use crate::command::{Command, ColumnDefinition, SelectColumnName};
+use crate::where_clause::WhereClause;
 use crate::lexer::SqlValue;
 use crate::table::Table;
 use crate::row::Row;
