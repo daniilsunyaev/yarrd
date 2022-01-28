@@ -35,6 +35,7 @@ pub enum SqlValue {
     String(String),
     Integer(i64),
     Identificator(String),
+    Null,
 }
 
 impl fmt::Display for SqlValue {
@@ -42,6 +43,7 @@ impl fmt::Display for SqlValue {
         match self {
             Self::String(string) | Self::Identificator(string) => write!(f, "{}", string),
             Self::Integer(integer) => write!(f, "{}", integer),
+            Self::Null => write!(f, "NULL"),
         }
     }
 }
@@ -127,6 +129,7 @@ fn parse_token(str_token: &str) -> Token {
         "values" => Token::Values,
         "int" => Token::IntegerType,
         "string" => Token::StringType,
+        "NULL" => Token::Value(SqlValue::Null),
         _ => parse_sql_value(str_token).map(Token::Value)
             .unwrap_or_else(|| Token::JunkIdentificator(str_token.to_string())),
     }

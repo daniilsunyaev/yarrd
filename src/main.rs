@@ -3,6 +3,7 @@ use std::fmt;
 use std::io::Write;
 
 use crate::command::MetaCommand;
+use crate::database::Database;
 
 mod table;
 mod lexer;
@@ -37,6 +38,7 @@ fn main() {
 fn run() -> Result<(), CliError> {
     let mut buffer = String::new();
     let stdin = io::stdin();
+    let mut database = Database::new();
 
     // let mut table = Table::db_open("./my_database.db").unwrap();
 
@@ -65,10 +67,13 @@ fn run() -> Result<(), CliError> {
         };
 
         match parser::parse_statement(tokens.iter()) {
-            Ok(command) => {
-                println!("successfully parsed command {:?}", command);
-            },
             Err(error) => println!("error parsing statement: {}", error),
+            Ok(command) => {
+                match database.execute(command) {
+                    Ok(_) => println!("statement executed successfully"),
+                    Err(message) => println!("cannot execute statement: {}", message),
+                }
+            },
         }
 
         //} else {

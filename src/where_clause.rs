@@ -17,7 +17,8 @@ impl CmpOperator {
             SqlValue::Integer(lvalue) => {
                 match right {
                     SqlValue::Integer(rvalue) => Ok(self.cmp_ord(lvalue, rvalue)),
-                    _ =>  Err(format!("cannot compare {:?} with number", right)),
+                    SqlValue::Null => Ok(false),
+                    _ => Err(format!("cannot compare {:?} with number", right)),
                 }
 
             },
@@ -27,12 +28,13 @@ impl CmpOperator {
                         match right {
                             SqlValue::Integer(_rvalue) =>  Err(format!("cannot compare {} with number", lvalue)),
                             SqlValue::String(rvalue) | SqlValue::Identificator(rvalue) => self.cmp_eq(lvalue, rvalue),
+                            SqlValue::Null => Ok(false),
                         }
                     },
                     _ => Err(format!("string {} can only be compared with other values with '=' or '<>'", lvalue)),
                 }
-            }
-
+            },
+            SqlValue::Null => Ok(false)
         }
     }
 

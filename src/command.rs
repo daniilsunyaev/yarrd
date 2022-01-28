@@ -1,6 +1,6 @@
 use crate::table::ColumnType;
 use crate::lexer::SqlValue;
-use crate::where_clause::{WhereClause, CmpOperator};
+use crate::where_clause::WhereClause;
 
 pub enum MetaCommand {
     Exit,
@@ -58,6 +58,7 @@ pub enum Command {
 mod tests {
     use super::*;
     use crate::database::Database;
+    use crate::where_clause::CmpOperator;
 
     #[test]
     fn create_and_drop_table() {
@@ -96,7 +97,7 @@ mod tests {
     }
 
     #[test]
-    fn select_from_table() {
+    fn insert_and_select_from_table() {
         let mut database = Database::new();
         let create_table = Command::CreateTable {
             table_name: SqlValue::Identificator("users".to_string()),
@@ -104,10 +105,22 @@ mod tests {
                 ColumnDefinition {
                     name: SqlValue::Identificator("id".to_string()),
                     kind: ColumnType::Integer,
+                },
+                ColumnDefinition {
+                    name: SqlValue::Identificator("name".to_string()),
+                    kind: ColumnType::String,
                 }
             ],
         };
         database.execute(create_table);
+
+        let insert_into_table = Command::InsertInto {
+            table_name: SqlValue::Identificator("users".to_string()),
+            column_names: Some(vec![SqlValue::Identificator("id".to_string()), SqlValue::String("name".to_string())]),
+            values: vec![SqlValue::Integer(1), SqlValue::Identificator("John".to_string())],
+        };
+        let insert_into_table_result = database.execute(insert_into_table);
+        assert!(insert_into_table_result.is_ok());
 
         let select_from_table = Command::Select {
             table_name: SqlValue::Identificator("users".to_string()),
@@ -122,14 +135,14 @@ mod tests {
 
         assert!(select_result.is_ok());
 
-        // assert_eq!(select_result.unwrap().first().get(0), 1)
+        //assert_eq!(select_result.unwrap().first().get(0), 1);
 
-        //let select_from_table = Command::Select {
-        //    table_name: SqlValue::Identificator("users".to_string()),
-        //    column_names: vec![SelectColumnName::Name(SqlValue::Identificator("ip".to_string()))],
-        //    where_clause: None,
-        //};
+        let select_from_table = Command::Select {
+            table_name: SqlValue::Identificator("users".to_string()),
+            column_names: vec![SelectColumnName::Name(SqlValue::Identificator("ip".to_string()))],
+            where_clause: None,
+        };
 
-        //assert!(database.execute(select_from_table).is_err());
+        assert!(database.execute(select_from_table).is_err());
     }
 }

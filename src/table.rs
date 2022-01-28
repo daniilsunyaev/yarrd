@@ -9,6 +9,26 @@ pub enum ColumnType {
     String
 }
 
+impl ColumnType {
+    pub fn matches_value(&self, value: &SqlValue) -> bool {
+        match self {
+            Self::Integer => {
+                match value {
+                    SqlValue::Integer(_) => true,
+                    _ => false,
+                }
+            },
+            Self::String => {
+                match value {
+                    SqlValue::Integer(_) => false,
+                    _ => true,
+                }
+            }
+        }
+
+    }
+}
+
 #[derive(Debug)]
 pub struct Table {
     pub name: String,
@@ -71,6 +91,38 @@ impl Table {
         }
 
         Ok(result_rows)
+    }
+
+    pub fn insert(&mut self, column_names: Option<Vec<String>>, values: Vec<SqlValue>) -> Result<(), String> {
+        let column_names = match &column_names {
+            Some(column_names) => column_names,
+            None => &self.column_names,
+        };
+
+        let mut column_indices = Vec::new();
+        for column_name in column_names {
+            column_indices.push(
+                self.column_index(column_name)
+                    .ok_or(format!("column '{}' does not exist for table '{}'", column_name, self.name))?
+            );
+        }
+
+        let mut row = vec![SqlValue::Null; self.column_types.len()];
+
+        for (value_index, value) in values.into_iter().enumerate() {
+            let column_index = column_indices[value_index];
+
+            if !self.column_types[column_index].matches_value(&value) {
+                return Err(format!("value {} is not acceptable for column {} which has type {:?}",
+                                   value, self.column_names[column_index], self.column_types[column_index]));
+            }
+
+            row[column_index] = value;
+        }
+
+        self.rows.push(row);
+
+        Ok(())
     }
 
     // TODO: add hashmap of name -> indices to avoid names scanning
