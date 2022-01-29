@@ -1,4 +1,4 @@
-use crate::command::{ColumnDefinition, SelectColumnName};
+use crate::command::{ColumnDefinition, FieldAssignment, SelectColumnName};
 use crate::where_clause::WhereClause;
 use crate::lexer::SqlValue;
 use crate::row::Row;
@@ -54,14 +54,11 @@ impl Table {
 
     pub fn select(&self, column_names: Vec<SelectColumnName>, where_clause: Option<WhereClause>) -> Result<Vec<Row>, String> {
         let mut result_rows = vec![];
-        let row_fits_where_clause = match &where_clause {
-            None => Box::new(|_| Ok(true)),
-            Some(where_clause) => where_clause.build_filter(self),
-        };
 
-        for i in 0..self.rows.len() {
+        let matching_rows_indices = self.get_matching_rows_indices(where_clause)?;
+
+        for i in matching_rows_indices {
             let row = &self.rows[i];
-            if !row_fits_where_clause(row)? { continue };
 
             let mut column_values: Vec<SqlValue> = vec![];
             let mut column_types: Vec<ColumnType> = vec![];
@@ -99,6 +96,57 @@ impl Table {
             None => &self.column_names,
         };
 
+        let column_indices = self.get_columns_indices(column_names)?;
+        self.validate_values_type(&values, &column_indices)?;
+
+        let mut row = vec![SqlValue::Null; self.column_types.len()];
+        for (value_index, value) in values.into_iter().enumerate() {
+            let column_index = column_indices[value_index];
+
+            row[column_index] = value;
+        }
+
+        self.rows.push(row);
+
+        Ok(())
+    }
+
+    pub fn update(&mut self, field_assignments: Vec<FieldAssignment>, where_clause: Option<WhereClause>) -> Result<(), String> {
+        let (column_names, column_values): (Vec<String>, Vec<SqlValue>) = field_assignments.into_iter()
+            .map(|assignment| (assignment.column_name, assignment.value))
+            .unzip();
+
+        let column_indices = self.get_columns_indices(&column_names)?;
+        self.validate_values_type(&column_values, &column_indices)?;
+
+        let update_rows_indices = self.get_matching_rows_indices(where_clause)?;
+
+        for update_row_index in update_rows_indices {
+            for (column_index, column_value) in column_values.iter().enumerate() {
+                let column_index = column_indices[column_index];
+                self.rows[update_row_index][column_index] = column_value.clone();
+            }
+        }
+
+        Ok(())
+    }
+
+    fn get_matching_rows_indices(&self, where_clause: Option<WhereClause>) -> Result<Vec<usize>, String> {
+        let mut rows_indices = vec![];
+        let row_fits_where_clause = match &where_clause {
+            None => Box::new(|_| Ok(true)),
+            Some(where_clause) => where_clause.build_filter(self),
+        };
+
+        for i in 0..self.rows.len() {
+            if !row_fits_where_clause(&self.rows[i])? { continue };
+            rows_indices.push(i)
+        }
+
+        Ok(rows_indices)
+    }
+
+    fn get_columns_indices(&self, column_names: &[String]) -> Result<Vec<usize>, String> {
         let mut column_indices = Vec::new();
         for column_name in column_names {
             column_indices.push(
@@ -107,21 +155,18 @@ impl Table {
             );
         }
 
-        let mut row = vec![SqlValue::Null; self.column_types.len()];
+        Ok(column_indices)
+    }
 
-        for (value_index, value) in values.into_iter().enumerate() {
+    fn validate_values_type(&self, columns_values: &[SqlValue], column_indices: &[usize]) -> Result<(), String> {
+        for (value_index, value) in columns_values.iter().enumerate() {
             let column_index = column_indices[value_index];
 
-            if !self.column_types[column_index].matches_value(&value) {
+            if !self.column_types[column_index].matches_value(value) {
                 return Err(format!("value {} is not acceptable for column {} which has type {:?}",
                                    value, self.column_names[column_index], self.column_types[column_index]));
             }
-
-            row[column_index] = value;
         }
-
-        self.rows.push(row);
-
         Ok(())
     }
 

@@ -15,11 +15,12 @@
 - ✓ execute drop table
 - ✓ execute select
 - ✓ execute select where
-- execute insert
-- execute update
+- ✓ execute insert
+- ✓ execute update
 - execute delete (in-memory)
 - add Null
 - think of proper error handling
+- remove result from where closures, cmp should return false in case of undefined, or think of three-valued logic
 - float values
 - allow capsed keywords
 - extract table name, column name parsing to a method
@@ -31,6 +32,7 @@
 - store hashtable for primary keys at the beginning of file or store those in root database file
 - maybe use peek and rewrite parser in more of decoupeled manner?
 - add table column names -> column offset hashmap
+- add pretty output of queries
 - implement limit
 - implement joins
 - WAL

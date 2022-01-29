@@ -37,7 +37,7 @@ where
 
     let where_provided = loop {
         let column_name = match token.next() {
-            Some(Token::Value(name)) => name.clone(),
+            Some(Token::Value(name)) => name.to_string(),
             Some(token) => return Err(format!("expected column name, got {:?}", token)),
             None => return Err("column name is not provided".to_string()),
         };

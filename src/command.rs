@@ -20,7 +20,7 @@ pub struct ColumnDefinition {
 
 #[derive(Debug)]
 pub struct FieldAssignment {
-    pub column_name: SqlValue,
+    pub column_name: String,
     pub value: SqlValue,
 }
 
@@ -144,5 +144,54 @@ mod tests {
         };
 
         assert!(database.execute(select_from_table).is_err());
+    }
+
+    #[test]
+    fn insert_and_update_table() {
+        let mut database = Database::new();
+        let create_table = Command::CreateTable {
+            table_name: SqlValue::Identificator("users".to_string()),
+            columns: vec![
+                ColumnDefinition {
+                    name: SqlValue::Identificator("id".to_string()),
+                    kind: ColumnType::Integer,
+                },
+                ColumnDefinition {
+                    name: SqlValue::Identificator("name".to_string()),
+                    kind: ColumnType::String,
+                }
+            ],
+        };
+        database.execute(create_table);
+
+        let insert_into_table = Command::InsertInto {
+            table_name: SqlValue::Identificator("users".to_string()),
+            column_names: Some(vec![SqlValue::Identificator("id".to_string()), SqlValue::String("name".to_string())]),
+            values: vec![SqlValue::Integer(1), SqlValue::Identificator("John".to_string())],
+        };
+        let insert_into_table_result = database.execute(insert_into_table);
+        assert!(insert_into_table_result.is_ok());
+
+        let update_table = Command::Update {
+            table_name: SqlValue::Identificator("users".to_string()),
+            field_assignments: vec![FieldAssignment {
+                column_name: "name".to_string(),
+                value: SqlValue::String("Pete Mason".to_string()),
+            }],
+            where_clause: None,
+        };
+        let update_table_result = database.execute(update_table);
+        assert!(update_table_result.is_ok());
+
+        let update_table = Command::Update {
+            table_name: SqlValue::Identificator("users".to_string()),
+            field_assignments: vec![FieldAssignment {
+                column_name: "name".to_string(),
+                value: SqlValue::Integer(1),
+            }],
+            where_clause: None,
+        };
+        let update_table_result = database.execute(update_table);
+        assert!(update_table_result.is_err());
     }
 }

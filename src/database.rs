@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::command::{Command, ColumnDefinition, SelectColumnName};
+use crate::command::{Command, ColumnDefinition, FieldAssignment, SelectColumnName};
 use crate::where_clause::WhereClause;
 use crate::lexer::SqlValue;
 use crate::table::Table;
@@ -24,6 +24,7 @@ impl Database {
                 Ok(())
             },
             Command::InsertInto { table_name, column_names, values } => self.insert_rows(table_name, column_names, values),
+            Command::Update { table_name, field_assignments, where_clause } => self.update_rows(table_name, field_assignments, where_clause),
             _ => Err(format!("unrecognized command {:?}", command)),
         }
     }
@@ -70,5 +71,15 @@ impl Database {
         let column_names = column_names.map(|sql_names| sql_names.iter().map(|sql_name| sql_name.to_string()).collect());
 
         table.insert(column_names, values)
+    }
+
+    fn update_rows(&mut self, table_name: SqlValue, field_assignments: Vec<FieldAssignment>, where_clause: Option<WhereClause>) -> Result<(), String> {
+        let table_name_string = table_name.to_string();
+        let table = match self.tables.get_mut(table_name_string.as_str()) {
+            None => return Err(format!("table '{}' does not exist", table_name_string)),
+            Some(existing_table) => existing_table,
+        };
+
+        table.update(field_assignments, where_clause)
     }
 }
