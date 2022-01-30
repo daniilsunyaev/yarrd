@@ -70,23 +70,14 @@ fn run() -> Result<(), CliError> {
             Err(error) => println!("error parsing statement: {}", error),
             Ok(command) => {
                 match database.execute(command) {
-                    Ok(_) => println!("statement executed successfully"),
+                    Ok(result) => {
+                        println!("statement executed successfully");
+                        println!("{:?}", result);
+                    }
                     Err(message) => println!("cannot execute statement: {}", message),
                 }
             },
         }
-
-        //} else {
-        //    match Statement::parse(input, &mut table) {
-        //        Ok(statement) => {
-        //            match statement.execute() {
-        //                Ok(_) => println!("statement executed successfully"),
-        //                Err(message) => println!("cannot execute statement: {}", message),
-        //            }
-        //        },
-        //        Err(error) => println!("error parseing statement: {}", error),
-        //    }
-        //}
     };
     //table.db_close().unwrap();
     Ok(())

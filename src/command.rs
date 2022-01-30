@@ -133,9 +133,12 @@ mod tests {
         };
         let select_result = database.execute(select_from_table);
 
-        assert!(select_result.is_ok());
+        assert!(matches!(select_result, Ok(Some(_))));
 
-        //assert_eq!(select_result.unwrap().first().get(0), 1);
+        let select_rows = select_result.unwrap().unwrap();
+        assert_eq!(select_rows.len(), 1);
+        //assert_eq!(select_rows.first().unwrap().get(0), 1);
+        //assert_eq!(select_rows.first().unwrap().get(1), "John");
 
         let select_from_table = Command::Select {
             table_name: SqlValue::Identificator("users".to_string()),
@@ -193,5 +196,55 @@ mod tests {
         };
         let update_table_result = database.execute(update_table);
         assert!(update_table_result.is_err());
+    }
+
+    #[test]
+    fn insert_delete_and_select_from_table() {
+        let mut database = Database::new();
+        let create_table = Command::CreateTable {
+            table_name: SqlValue::Identificator("users".to_string()),
+            columns: vec![
+                ColumnDefinition {
+                    name: SqlValue::Identificator("id".to_string()),
+                    kind: ColumnType::Integer,
+                },
+                ColumnDefinition {
+                    name: SqlValue::Identificator("name".to_string()),
+                    kind: ColumnType::String,
+                }
+            ],
+        };
+        database.execute(create_table);
+
+        let insert_into_table = Command::InsertInto {
+            table_name: SqlValue::Identificator("users".to_string()),
+            column_names: Some(vec![SqlValue::Identificator("id".to_string()), SqlValue::String("name".to_string())]),
+            values: vec![SqlValue::Integer(1), SqlValue::Identificator("John".to_string())],
+        };
+        let insert_into_table_result = database.execute(insert_into_table);
+        assert!(insert_into_table_result.is_ok());
+
+        let delete_from_table = Command::Delete {
+            table_name: SqlValue::Identificator("users".to_string()),
+            where_clause: Some(WhereClause {
+                left_value: SqlValue::String("John".to_string()),
+                right_value: SqlValue::String("name".to_string()),
+                operator: CmpOperator::Equals,
+            }),
+        };
+        let delete_from_table_result = database.execute(delete_from_table);
+        assert!(delete_from_table_result.is_ok());
+
+        let select_from_table = Command::Select {
+            table_name: SqlValue::Identificator("users".to_string()),
+            column_names: vec![SelectColumnName::AllColumns],
+            where_clause: None,
+        };
+        let select_result = database.execute(select_from_table);
+
+        assert!(matches!(select_result, Ok(Some(_))));
+
+        let select_rows = select_result.unwrap().unwrap();
+        assert_eq!(select_rows.len(), 0);
     }
 }

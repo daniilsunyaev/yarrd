@@ -9,12 +9,12 @@ pub struct Row {
 }
 
 impl Row {
-    // pub fn get<'a, T: From<&'a SqlValue>>(&self, index: usize) -> Result<T, String> {
-    //     let value = self.column_values.get(index)
-    //         .ok_or(format!("row does not contain data with offset {}", index))?;
+    //pub fn get<'a, T: From<&'a SqlValue>>(&self, index: usize) -> Result<T, String> {
+    //    let value = self.column_values.get(index)
+    //        .ok_or(format!("row does not contain data with offset {}", index))?;
 
-    //     Ok(value.into())
-    // }
+    //    Ok(value.into())
+    //}
 
     // pub fn get(&self, index: usize) -> Result<SqlValue, String> {
     //     let value_ref = self.column_values.get(index)

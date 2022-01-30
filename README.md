@@ -17,8 +17,9 @@
 - ✓ execute select where
 - ✓ execute insert
 - ✓ execute update
-- execute delete (in-memory)
+- ✓ execute delete (in-memory)
 - add Null
+- reuse deleted rows
 - think of proper error handling
 - remove result from where closures, cmp should return false in case of undefined, or think of three-valued logic
 - float values

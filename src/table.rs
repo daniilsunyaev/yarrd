@@ -35,6 +35,7 @@ pub struct Table {
     pub column_types: Vec<ColumnType>,
     column_names: Vec<String>,
     rows: Vec<Vec<SqlValue>>,
+    free_rows: Vec<usize>,
 }
 
 
@@ -49,7 +50,7 @@ impl Table {
             column_types.push(column_definition.kind);
         }
 
-        Self { name, column_types, column_names, rows: vec![] }
+        Self { name, column_types, column_names, rows: vec![], free_rows: vec![] }
     }
 
     pub fn select(&self, column_names: Vec<SelectColumnName>, where_clause: Option<WhereClause>) -> Result<Vec<Row>, String> {
@@ -131,6 +132,12 @@ impl Table {
         Ok(())
     }
 
+    pub fn delete(&mut self, where_clause: Option<WhereClause>) -> Result<(), String> {
+        let mut delete_rows_indices = self.get_matching_rows_indices(where_clause)?;
+        self.free_rows.append(&mut delete_rows_indices);
+        Ok(())
+    }
+
     fn get_matching_rows_indices(&self, where_clause: Option<WhereClause>) -> Result<Vec<usize>, String> {
         let mut rows_indices = vec![];
         let row_fits_where_clause = match &where_clause {
@@ -139,7 +146,7 @@ impl Table {
         };
 
         for i in 0..self.rows.len() {
-            if !row_fits_where_clause(&self.rows[i])? { continue };
+            if !row_fits_where_clause(&self.rows[i])? || self.free_rows.contains(&i) { continue };
             rows_indices.push(i)
         }
 
