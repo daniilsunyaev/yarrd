@@ -107,7 +107,10 @@ impl Table {
             row[column_index] = value;
         }
 
-        self.rows.push(row);
+        match self.free_rows.pop() {
+            Some(i) => self.rows[i] = row,
+            None => self.rows.push(row),
+        }
 
         Ok(())
     }
