@@ -1,3 +1,4 @@
+use std::error::Error;
 use std::fmt;
 
 #[derive(Debug, PartialEq)] // TODO: impl display to display in error messages
@@ -27,8 +28,27 @@ pub enum Token {
     IntegerType, // TODO: maybe extract types to separate enum
     StringType,
     Value(SqlValue),
-    JunkIdentificator(String),
+    Unknown(String),
 }
+
+#[derive(Debug)]
+pub enum LexerError {
+    IncompleteString,
+    UnknownToken(String),
+}
+
+impl fmt::Display for LexerError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let message = match self {
+            LexerError::IncompleteString => "statement contain unclosed quotes".to_string(),
+            LexerError::UnknownToken(token) => format!("token '{}' contains unallowed chars and cannot be recognized", token),
+        };
+
+        write!(f, "{}", message)
+    }
+}
+
+impl Error for LexerError {}
 
 #[derive(Debug, PartialEq, Clone)] // TODO: display instead of debug in error messages
 pub enum SqlValue {
@@ -39,7 +59,7 @@ pub enum SqlValue {
 }
 
 impl fmt::Display for SqlValue {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::String(string) | Self::Identificator(string) => write!(f, "{}", string),
             Self::Integer(integer) => write!(f, "{}", integer),
@@ -50,12 +70,12 @@ impl fmt::Display for SqlValue {
 
 impl Token {
     pub fn is_junk(&self) -> bool {
-        matches!(self, Token::JunkIdentificator(_))
+        matches!(self, Token::Unknown(_))
     }
 }
 
-pub fn to_tokens(input: &str) -> Result<Vec<Token>, String> {
-    if input.matches('"').count() % 2 != 0 { return Err("statement contain unclosed quotes".to_string()) };
+pub fn to_tokens(input: &str) -> Result<Vec<Token>, LexerError> {
+    if input.matches('"').count() % 2 != 0 { return Err(LexerError::IncompleteString) };
     let input_chars_length = input.chars().count();
 
     let tokens: Vec<Token> = input.chars().enumerate()
@@ -91,8 +111,8 @@ pub fn to_tokens(input: &str) -> Result<Vec<Token>, String> {
         .map(parse_token)
         .collect();
 
-    if let Some(token) = tokens.iter().find(|el| el.is_junk()) {
-        Err(format!("name '{:?}' contains non alphanumertic chars", token))
+    if let Some(Token::Unknown(input)) = tokens.iter().find(|el| el.is_junk()) {
+        Err(LexerError::UnknownToken(input.to_string()))
     } else {
         Ok(tokens)
     }
@@ -131,7 +151,7 @@ fn parse_token(str_token: &str) -> Token {
         "string" => Token::StringType,
         "NULL" => Token::Value(SqlValue::Null),
         _ => parse_sql_value(str_token).map(Token::Value)
-            .unwrap_or_else(|| Token::JunkIdentificator(str_token.to_string())),
+            .unwrap_or_else(|| Token::Unknown(str_token.to_string())),
     }
 }
 
@@ -171,8 +191,11 @@ mod tests {
         assert_eq!(to_tokens(another_valid_input).unwrap(),
             vec![Token::Value(SqlValue::Identificator("token".to_string())), Token::AllColumns, Token::From]);
 
-        assert!(to_tokens(invalid_input).is_err());
-        assert!(to_tokens(another_invalid_input).is_err());
+        assert!(matches!(to_tokens(invalid_input), Err(LexerError::IncompleteString)));
+        assert!(matches!(
+                to_tokens(another_invalid_input),
+                Err(LexerError::UnknownToken(_))
+        ));
     }
 
     #[test]
