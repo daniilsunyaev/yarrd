@@ -1,34 +1,35 @@
 use crate::command::{Command, ColumnDefinition};
 use crate::table::ColumnType;
 use crate::lexer::Token;
+use crate::parser::error::ParserError;
 
-pub fn parse_create_statement<'a, I>(mut token: I) -> Result<Command, String>
+pub fn parse_create_statement<'a, I>(mut token: I) -> Result<Command, ParserError<'a>>
 where
     I: Iterator<Item = &'a Token> + std::fmt::Debug,
 {
     match token.next() {
         Some(Token::Table) => parse_create_table_statement(token),
-        None => Err("create type is not provided".to_string()),
-        _ => Err("unknown create type".to_string()),
+        None => Err(ParserError::CreateTypeMissing),
+        Some(token) => Err(ParserError::CreateTypeUnknown(token)),
     }
 }
 
-fn parse_create_table_statement<'a, I>(mut token: I) -> Result<Command, String>
+fn parse_create_table_statement<'a, I>(mut token: I) -> Result<Command, ParserError<'a>>
 where
     I: Iterator<Item = &'a Token> + std::fmt::Debug,
 {
 
     let table_name = match token.next() {
         Some(Token::Value(name)) => name.clone(),
-        Some(token) => return Err(format!("expected identificator as a table name, got {:?}", token)),
-        None => return Err("no table name is provided".to_string()),
+        Some(token) => return Err(ParserError::TableNameInvalid(token)),
+        None => return Err(ParserError::TableNameMissing),
     };
 
     let column_definitions = parse_column_definitions(token)?;
     Ok(Command::CreateTable { table_name, columns: column_definitions })
 }
 
-fn parse_column_definitions<'a, I>(mut token: I) -> Result<Vec<ColumnDefinition>, String>
+fn parse_column_definitions<'a, I>(mut token: I) -> Result<Vec<ColumnDefinition>, ParserError<'a>>
 where
     I: Iterator<Item = &'a Token> + std::fmt::Debug,
 {
@@ -36,22 +37,22 @@ where
 
     match token.next() {
         Some(Token::LeftParenthesis) => { },
-        Some(token) => return Err(format!("column definitions expected to be inside parenthesis, but instead of '(' got {:?}", token)),
-        None => return Err("column definitions expected to be inside parenthesis".to_string()),
+        Some(token) => return Err(ParserError::LeftParenthesisExpected(token, "column definitions")),
+        None => return Err(ParserError::LeftParenthesisMissing("column definitions")),
     }
 
     loop {
         let name = match token.next() {
             Some(Token::Value(name)) => name.clone(),
-            Some(token) => return Err(format!("expected column name, got {:?}", token)),
-            None => return Err("column name is not provided".to_string()),
+            Some(token) => return Err(ParserError::ColumnNameInvalid(token)),
+            None => return Err(ParserError::ColumnNameMissing),
         };
 
         let kind = match token.next() {
             Some(Token::IntegerType) => ColumnType::Integer,
             Some(Token::StringType) => ColumnType::String,
-            Some(token) => return Err(format!("expected column type, got {:?}", token)),
-            None => return Err("column type is not provided".to_string()),
+            Some(token) => return Err(ParserError::ColumnTypeInvalid(token)),
+            None => return Err(ParserError::ColumnTypeMissing),
         };
 
         columns.push(ColumnDefinition { name, kind } );
@@ -59,8 +60,8 @@ where
         match token.next() {
             Some(Token::RightParenthesis) => break,
             Some(Token::Comma) => { },
-            Some(token) => return Err(format!("columns definition is not finished, expected ',' or ')', got {:?}", token)),
-            None => return Err("columns definition is not finished".to_string()),
+            Some(token) => return Err(ParserError::RightParenthesisExpected(token, "column definitions")),
+            None => return Err(ParserError::RightParenthesisMissing("column definitions")),
         };
     }
 

@@ -19,17 +19,17 @@
 - ✓ execute update
 - ✓ execute delete (in-memory)
 - ✓ reuse deleted rows
-- think of proper error handling
+- ✓ think of proper error handling
+- allow store tables into files (may need to break this down) (straight bincode serialization)
+- load stored tables on launch
+- implement custom serializer for rows
+- introduce page alignment
 - add Null
 - remove result from where closures, cmp should return false in case of undefined, or think of three-valued logic
 - float values
 - allow capsed keywords
 - extract table name, column name parsing to a method
-- allow store tables into files (may need to break this down) (straight bincode serialization)
-- load stored tables on launch
 - implement primary constraint (may just primary key flag, no general constraints)
-- implement custom serializer for rows
-- introduce page alignment
 - store hashtable for primary keys at the beginning of file or store those in root database file
 - maybe use peek and rewrite parser in more of decoupeled manner?
 - add table column names -> column offset hashmap

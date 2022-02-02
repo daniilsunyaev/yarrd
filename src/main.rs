@@ -1,9 +1,11 @@
 use std::io;
 use std::fmt;
 use std::io::Write;
+use std::error::Error;
 
 use crate::command::MetaCommand;
 use crate::database::Database;
+use crate::execution_error::ExecutionError;
 
 mod table;
 mod lexer;
@@ -12,30 +14,17 @@ mod parser;
 mod database;
 mod row; // TODO: maybe put it inside database or table?
 mod where_clause;
-
-enum CliError {
-    IoError(io::Error),
-    //ParseError(String),
-}
-
-impl fmt::Display for CliError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Self::IoError(io_error) => write!(f, "io error: '{:?}'", io_error),
-            //Self::ParseError(error_text) => write!(f, "parse error: '{}'", error_text),
-        }
-    }
-}
+mod execution_error;
 
 const PROMPT: &str = "yarrd> ";
 
 fn main() {
     if let Err(error) = run() {
-        eprintln!("error: {}", error);
+        eprintln!("critical error: {}", error);
     }
 }
 
-fn run() -> Result<(), CliError> {
+fn run() -> Result<(), io::Error> {
     let mut buffer = String::new();
     let stdin = io::stdin();
     let mut database = Database::new();
@@ -46,7 +35,7 @@ fn run() -> Result<(), CliError> {
         buffer.clear();
         print_prompt();
 
-        stdin.read_line(&mut buffer).map_err(CliError::IoError)?;
+        stdin.read_line(&mut buffer)?;
         let input = buffer.trim();
 
         match parser::parse_meta_command(input) {

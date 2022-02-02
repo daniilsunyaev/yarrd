@@ -1,12 +1,24 @@
+use std::fmt;
+
 use crate::command::{ColumnDefinition, FieldAssignment, SelectColumnName};
 use crate::where_clause::WhereClause;
 use crate::lexer::SqlValue;
 use crate::row::Row;
+use crate::execution_error::ExecutionError;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum ColumnType {
     Integer,
     String
+}
+
+impl fmt::Display for ColumnType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Integer => write!(f, "INT"),
+            Self::String => write!(f, "STRING"),
+        }
+    }
 }
 
 impl ColumnType {
@@ -53,7 +65,7 @@ impl Table {
         Self { name, column_types, column_names, rows: vec![], free_rows: vec![] }
     }
 
-    pub fn select(&self, column_names: Vec<SelectColumnName>, where_clause: Option<WhereClause>) -> Result<Vec<Row>, String> {
+    pub fn select(&self, column_names: Vec<SelectColumnName>, where_clause: Option<WhereClause>) -> Result<Vec<Row>, ExecutionError> {
         let mut result_rows = vec![];
 
         let matching_rows_indices = self.get_matching_rows_indices(where_clause)?;
@@ -67,12 +79,13 @@ impl Table {
             for select_column_name in &column_names {
                 match select_column_name {
                     SelectColumnName::Name(column_name) => {
-                        let column_index = self.column_index(&column_name.to_string())
-                            .ok_or(format!("column {} does not exist", column_name))?;
+                        let column_name = column_name.to_string();
+                        let column_index = self.column_index(&column_name)
+                            .ok_or(ExecutionError::ColumnNotExist { column_name, table_name: self.name.clone() })?;
                         let column_value = row.get(column_index)
-                            .ok_or(format!("table {} does not have a column with index {}", self.name, column_index))?;
+                            .ok_or(ExecutionError::ColumnNthNotExist { column_index, table_name: self.name.clone() })?;
                         let column_type = self.column_types.get(column_index)
-                            .ok_or(format!("table {} does not have a column with index {}", self.name, column_index))?;
+                            .ok_or(ExecutionError::ColumnNthNotExist { column_index, table_name: self.name.clone() })?;
                         column_values.push(column_value.clone());
                         column_types.push(column_type.clone());
                     },
@@ -91,7 +104,7 @@ impl Table {
         Ok(result_rows)
     }
 
-    pub fn insert(&mut self, column_names: Option<Vec<String>>, values: Vec<SqlValue>) -> Result<(), String> {
+    pub fn insert(&mut self, column_names: Option<Vec<String>>, values: Vec<SqlValue>) -> Result<(), ExecutionError> {
         let column_names = match &column_names {
             Some(column_names) => column_names,
             None => &self.column_names,
@@ -115,7 +128,7 @@ impl Table {
         Ok(())
     }
 
-    pub fn update(&mut self, field_assignments: Vec<FieldAssignment>, where_clause: Option<WhereClause>) -> Result<(), String> {
+    pub fn update(&mut self, field_assignments: Vec<FieldAssignment>, where_clause: Option<WhereClause>) -> Result<(), ExecutionError> {
         let (column_names, column_values): (Vec<String>, Vec<SqlValue>) = field_assignments.into_iter()
             .map(|assignment| (assignment.column_name, assignment.value))
             .unzip();
@@ -135,13 +148,13 @@ impl Table {
         Ok(())
     }
 
-    pub fn delete(&mut self, where_clause: Option<WhereClause>) -> Result<(), String> {
+    pub fn delete(&mut self, where_clause: Option<WhereClause>) -> Result<(), ExecutionError> {
         let mut delete_rows_indices = self.get_matching_rows_indices(where_clause)?;
         self.free_rows.append(&mut delete_rows_indices);
         Ok(())
     }
 
-    fn get_matching_rows_indices(&self, where_clause: Option<WhereClause>) -> Result<Vec<usize>, String> {
+    fn get_matching_rows_indices(&self, where_clause: Option<WhereClause>) -> Result<Vec<usize>, ExecutionError> {
         let mut rows_indices = vec![];
         let row_fits_where_clause = match &where_clause {
             None => Box::new(|_| Ok(true)),
@@ -156,25 +169,26 @@ impl Table {
         Ok(rows_indices)
     }
 
-    fn get_columns_indices(&self, column_names: &[String]) -> Result<Vec<usize>, String> {
+    fn get_columns_indices(&self, column_names: &[String]) -> Result<Vec<usize>, ExecutionError> {
         let mut column_indices = Vec::new();
         for column_name in column_names {
             column_indices.push(
                 self.column_index(column_name)
-                    .ok_or(format!("column '{}' does not exist for table '{}'", column_name, self.name))?
+                    .ok_or(ExecutionError::ColumnNotExist { column_name: column_name.clone(), table_name: self.name.clone() })?
             );
         }
 
         Ok(column_indices)
     }
 
-    fn validate_values_type(&self, columns_values: &[SqlValue], column_indices: &[usize]) -> Result<(), String> {
+    fn validate_values_type(&self, columns_values: &[SqlValue], column_indices: &[usize]) -> Result<(), ExecutionError> {
         for (value_index, value) in columns_values.iter().enumerate() {
             let column_index = column_indices[value_index];
 
             if !self.column_types[column_index].matches_value(value) {
-                return Err(format!("value {} is not acceptable for column {} which has type {:?}",
-                                   value, self.column_names[column_index], self.column_types[column_index]));
+                return Err(ExecutionError::ValueColumnMismatch {
+                    value: value.clone(), column_name: self.column_names[column_index].clone(), column_type: self.column_types[column_index]
+                });
             }
         }
         Ok(())

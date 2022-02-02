@@ -1,14 +1,15 @@
 use crate::where_clause::{WhereClause, CmpOperator};
 use crate::lexer::Token;
+use crate::parser::error::ParserError;
 
-pub fn parse_where_clause<'a, I>(mut token: I) -> Result<WhereClause, String>
+pub fn parse_where_clause<'a, I>(mut token: I) -> Result<WhereClause, ParserError<'a>>
 where
     I: Iterator<Item = &'a Token> + std::fmt::Debug,
 {
     let left_value = match token.next() {
         Some(Token::Value(sql_value)) => sql_value.clone(),
-        Some(token) => return Err(format!("expected value or identifier, got {:?}", token)),
-        None => return Err("where left value is not provided".to_string()),
+        Some(token) => return Err(ParserError::LvalueInvalid(token)),
+        None => return Err(ParserError::LvalueMissing),
     };
 
     let operator = match token.next() {
@@ -18,14 +19,14 @@ where
         Some(Token::Greater) => CmpOperator::Greater,
         Some(Token::LessEquals) => CmpOperator::LessEquals,
         Some(Token::GreaterEquals) => CmpOperator::GreaterEquals,
-        Some(token) => return Err(format!("expected operator, got {:?}", token)),
-        None => return Err("expected operator".to_string()),
+        Some(token) => return Err(ParserError::OperatorInvalid(token)),
+        None => return Err(ParserError::OperatorMissing),
     };
 
     let right_value = match token.next() {
         Some(Token::Value(sql_value)) => sql_value.clone(),
-        Some(token) => return Err(format!("expected value or identifier, got {:?}", token)),
-        None => return Err("where right value is not provided".to_string()),
+        Some(token) => return Err(ParserError::RvalueInvalid(token)),
+        None => return Err(ParserError::RvalueMissing),
     };
 
     Ok(WhereClause { left_value, right_value, operator })

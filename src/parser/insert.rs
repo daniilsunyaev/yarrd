@@ -1,26 +1,28 @@
 use crate::command::Command;
 use crate::lexer::{Token, SqlValue};
+use crate::parser::error::ParserError;
 
-pub fn parse_insert_statement<'a, I>(mut token: I) -> Result<Command, String>
+pub fn parse_insert_statement<'a, I>(mut token: I) -> Result<Command, ParserError<'a>>
 where
     I: Iterator<Item = &'a Token> + std::fmt::Debug,
 {
     match token.next() {
         Some(Token::Into) => parse_insert_into(token),
-        None => Err("create type is not provided".to_string()),
-        _ => Err("unknown create type".to_string()),
+        Some(token) => Err(ParserError::InsertInvalid(token)),
+        None => Err(ParserError::IntoMissing),
     }
 }
 
-fn parse_insert_into<'a, I>(mut token: I) -> Result<Command, String>
+fn parse_insert_into<'a, I>(mut token: I) -> Result<Command, ParserError<'a>>
 where
     I: Iterator<Item = &'a Token> + std::fmt::Debug,
 {
 
+
     let table_name = match token.next() {
         Some(Token::Value(name)) => name.clone(),
-        Some(token) => return Err(format!("expected identificator as a table name, got {:?}", token)),
-        None => return Err("no table name is provided".to_string()),
+        Some(token) => return Err(ParserError::TableNameInvalid(token)),
+        None => return Err(ParserError::TableNameMissing),
     };
 
     let column_names = parse_column_names(&mut token)?;
@@ -29,7 +31,7 @@ where
     Ok(Command::InsertInto { table_name, column_names: Some(column_names), values })
 }
 
-fn parse_column_names<'a, I>(mut token: I) -> Result<Vec<SqlValue>, String>
+fn parse_column_names<'a, I>(mut token: I) -> Result<Vec<SqlValue>, ParserError<'a>>
 where
     I: Iterator<Item = &'a Token> + std::fmt::Debug,
 {
@@ -37,15 +39,15 @@ where
 
     match token.next() {
         Some(Token::LeftParenthesis) => { },
-        Some(token) => return Err(format!("column names expected to be inside parenthesis, but instead of '(' got {:?}", token)),
-        None => return Err("column names expected to be inside parenthesis".to_string()),
+        Some(token) => return Err(ParserError::LeftParenthesisExpected(token, "column names")),
+        None => return Err(ParserError::LeftParenthesisMissing("column names")),
     }
 
     loop {
         let name = match token.next() {
             Some(Token::Value(name)) => name.clone(),
-            Some(token) => return Err(format!("expected column name, got {:?}", token)),
-            None => return Err("column name is not provided".to_string()),
+            Some(token) => return Err(ParserError::ColumnNameInvalid(token)),
+            None => return Err(ParserError::ColumnNameMissing),
         };
 
         columns.push(name);
@@ -53,15 +55,15 @@ where
         match token.next() {
             Some(Token::RightParenthesis) => break,
             Some(Token::Comma) => { },
-            Some(token) => return Err(format!("column names list is not finished, expected ',' or ')', got {:?}", token)),
-            None => return Err("columns names list is not finished".to_string()),
+            Some(token) => return Err(ParserError::RightParenthesisExpected(token, "column names")),
+            None => return Err(ParserError::RightParenthesisMissing("column names")),
         };
     }
 
     Ok(columns)
 }
 
-fn parse_values_expression<'a, I>(mut token: I) -> Result<Vec<SqlValue>, String>
+fn parse_values_expression<'a, I>(mut token: I) -> Result<Vec<SqlValue>, ParserError<'a>>
 where
     I: Iterator<Item = &'a Token> + std::fmt::Debug,
 {
@@ -69,21 +71,21 @@ where
 
     match token.next() {
         Some(Token::Values) => { },
-        Some(token) => return Err(format!("column VALUES keyword, got {:?}", token)),
-        None => return Err("no column values provided".to_string()),
+        Some(token) => return Err(ParserError::ValuesKeywordMissing(token)),
+        None => return Err(ParserError::InsertValuesMissing),
     }
 
     match token.next() {
         Some(Token::LeftParenthesis) => { },
-        Some(token) => return Err(format!("column values expected to be inside parenthesis, but instead of '(' got {:?}", token)),
-        None => return Err("column values expected to be inside parenthesis".to_string()),
+        Some(token) => return Err(ParserError::LeftParenthesisExpected(token, "column values")),
+        None => return Err(ParserError::LeftParenthesisMissing("column values")),
     }
 
     loop {
         let value = match token.next() {
             Some(Token::Value(value)) => value.clone(),
-            Some(token) => return Err(format!("expected column value, got {:?}", token)),
-            None => return Err("column value is not provided".to_string()),
+            Some(token) => return Err(ParserError::ColumnValueInvalid(token)),
+            None => return Err(ParserError::ColumnValueMissing),
         };
 
         values.push(value);
@@ -91,8 +93,8 @@ where
         match token.next() {
             Some(Token::RightParenthesis) => break,
             Some(Token::Comma) => { },
-            Some(token) => return Err(format!("column values list is not finished, expected ',' or ')', got {:?}", token)),
-            None => return Err("column values list is not finished".to_string()),
+            Some(token) => return Err(ParserError::RightParenthesisExpected(token, "column values")),
+            None => return Err(ParserError::RightParenthesisMissing("column values")),
         };
     }
 

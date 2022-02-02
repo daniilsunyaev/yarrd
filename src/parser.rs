@@ -1,5 +1,6 @@
 use crate::command::{Command, MetaCommand};
 use crate::lexer::Token;
+use crate::parser::error::ParserError;
 use create::parse_create_statement;
 use drop::parse_drop_statement;
 use insert::parse_insert_statement;
@@ -14,8 +15,9 @@ mod select;
 mod where_clause;
 mod update;
 mod delete;
+mod error;
 
-pub fn parse_statement<'a, I>(mut token: I) -> Result<Command, String>
+pub fn parse_statement<'a, I>(mut token: I) -> Result<Command, ParserError<'a>>
 where
     I: Iterator<Item = &'a Token> + std::fmt::Debug,
 {
@@ -26,23 +28,23 @@ where
         Some(Token::Select) => parse_select_statement(&mut token)?,
         Some(Token::Update) => parse_update_statement(&mut token)?,
         Some(Token::Delete) => parse_delete_statement(&mut token)?,
-        _ => return Err("cannot parse statement".to_string()),
+        Some(command) => return Err(ParserError::UnknownCommand(command)),
+        _ => return Ok(Command::VoidCommand),
     };
 
-    println!("{:?}", command);
     let remainder = token.collect::<Vec<&Token>>();
-    if !remainder.is_empty() {
-        Err(format!("parsed correct statement, but some excess tokens are present in the input: {:?}", remainder))
-    } else {
+    if remainder.is_empty() {
         Ok(command)
+    } else {
+        Err(ParserError::ExcessTokens(remainder))
     }
 }
 
-pub fn parse_meta_command(input: &str) -> Result<Option<MetaCommand>, String> {
+pub fn parse_meta_command<'a>(input: &'a str) -> Result<Option<MetaCommand>, ParserError<'a>> {
     if input.starts_with('.') {
         match input {
             ".exit" | ".quit" => Ok(Some(MetaCommand::Exit)),
-            _ => Err(format!("unrecognized meta_command '{}'", input)),
+            _ => Err(ParserError::UnknownMetaCommand(input)),
         }
     } else {
         Ok(None)

@@ -51,7 +51,8 @@ pub enum Command {
     },
     DropTable {
         table_name: SqlValue,
-    }
+    },
+    VoidCommand,
 }
 
 #[cfg(test)]

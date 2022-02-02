@@ -1,7 +1,10 @@
+use std::fmt;
+
 use crate::lexer::SqlValue;
 use crate::table::Table;
+use crate::execution_error::ExecutionError;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum CmpOperator {
     Less,
     Greater,
@@ -11,41 +14,51 @@ pub enum CmpOperator {
     GreaterEquals,
 }
 
+impl<'a> fmt::Display for CmpOperator {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Less => write!(f, "<"),
+            Self::Greater => write!(f, ">"),
+            Self::Equals => write!(f, "="),
+            Self::NotEquals => write!(f, "<>"),
+            Self::LessEquals => write!(f, "<="),
+            Self::GreaterEquals => write!(f, ">="),
+        }
+    }
+}
+
 impl CmpOperator {
-    pub fn apply(&self, left: &SqlValue, right: &SqlValue) -> Result<bool, String> {
+    pub fn apply(&self, left: SqlValue, right: SqlValue) -> Result<bool, ExecutionError> {
         match left {
             SqlValue::Integer(lvalue) => {
                 match right {
                     SqlValue::Integer(rvalue) => Ok(self.cmp_ord(lvalue, rvalue)),
                     SqlValue::Null => Ok(false),
-                    _ => Err(format!("cannot compare {:?} with number", right)),
+                    _ => Err(ExecutionError::CannotCompareWithNumber(right)),
                 }
 
             },
-            SqlValue::String(lvalue) | SqlValue::Identificator(lvalue) => {
+            SqlValue::String(ref lvalue) | SqlValue::Identificator(ref lvalue) => {
                 match self {
                     Self::Equals | Self::NotEquals => {
                         match right {
-                            SqlValue::Integer(_rvalue) =>  Err(format!("cannot compare {} with number", lvalue)),
-                            SqlValue::String(rvalue) | SqlValue::Identificator(rvalue) => self.cmp_eq(lvalue, rvalue),
+                            SqlValue::Integer(_rvalue) =>  Err(ExecutionError::CannotCompareWithNumber(left)),
+                            SqlValue::String(rvalue) | SqlValue::Identificator(rvalue) => self.cmp_eq(&lvalue, &rvalue),
                             SqlValue::Null => Ok(false),
                         }
                     },
-                    _ => Err(format!("string {} can only be compared with other values with '=' or '<>'", lvalue)),
+                    _ => Err(ExecutionError::OperatorNotApplicable { operator: *self, lvalue: left, rvalue: right })
                 }
             },
             SqlValue::Null => Ok(false)
         }
     }
 
-    fn cmp_eq<Stringlike>(&self, left: Stringlike, right: Stringlike) -> Result<bool, String>
-    where
-        Stringlike: PartialEq + std::fmt::Display
-    {
+    fn cmp_eq(&self, left: &str, right: &str) -> Result<bool, ExecutionError> {
         match self {
             Self::Equals => Ok(left == right),
             Self::NotEquals => Ok(left != right),
-            _ => Err(format!("cannot compare {} with {}", left, right)),
+            _ => Err(ExecutionError::NonEqualityComparisonWithStrings { operator: *self, lvalue: left.to_string(), rvalue: right.to_string() })
         }
     }
 
@@ -72,12 +85,12 @@ pub struct WhereClause {
 }
 
 impl WhereClause {
-    pub fn build_filter<'a>(&'a self, table: &'a Table) -> Box<dyn Fn(&'a Vec<SqlValue>) -> Result<bool, String> + 'a> {
+    pub fn build_filter<'a>(&'a self, table: &'a Table) -> Box<dyn Fn(&'a Vec<SqlValue>) -> Result<bool, ExecutionError> + 'a> {
         let get_left_value = self.build_value_getter(table, &self.left_value);
         let get_right_value = self.build_value_getter(table, &self.right_value);
 
         Box::new(move |row: &Vec<SqlValue>| {
-            self.operator.apply(&get_left_value(row), &get_right_value(row))
+            self.operator.apply(get_left_value(row), get_right_value(row))
         })
     }
 

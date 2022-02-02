@@ -31,6 +31,41 @@ pub enum Token {
     Unknown(String),
 }
 
+impl fmt::Display for Token {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let str_token = match self {
+            Self::LeftParenthesis => "(",
+            Self::RightParenthesis => ")",
+            Self::Comma => ",",
+            Self::Less => "<",
+            Self::Greater => ">=",
+            Self::Equals => "=",
+            Self::NotEquals => "<>",
+            Self::LessEquals => "<=",
+            Self::GreaterEquals => ">=",
+            Self::Insert => "INSERT",
+            Self::Into => "INTO",
+            Self::Select => "SELECT",
+            Self::AllColumns => "*",
+            Self::From => "FROM",
+            Self::Where => "WHERE",
+            Self::Update => "UPDATE",
+            Self::Set => "SET",
+            Self::Delete => "DELETE",
+            Self::Create => "CREATE",
+            Self::Drop => "DROP",
+            Self::Table => "TABLE",
+            Self::Values => "VALUES",
+            Self::IntegerType => "int",
+            Self::StringType => "string",
+            Self::Value(sql_value) => return write!(f, "{}", sql_value),
+            Self::Unknown(string) => return write!(f, "{}", string),
+        };
+        write!(f, "{}", str_token)
+    }
+}
+
+
 #[derive(Debug)]
 pub enum LexerError {
     IncompleteString,
