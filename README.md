@@ -21,8 +21,11 @@
 - ✓ reuse deleted rows
 - ✓ think of proper error handling
 - allow store tables into files (may need to break this down) (straight bincode serialization)
-- load stored tables on launch
-- implement custom serializer for rows
+  - ✓ add serializer/deserializer for each type (or use bincode)
+  - implement custom serializer for rows
+  - change tables to store rows in bytes, and deserialize it on-demand
+  - store tables rows on close
+  - load tables on db connect
 - introduce page alignment
 - add Null
 - remove result from where closures, cmp should return false in case of undefined, or think of three-valued logic
@@ -30,6 +33,7 @@
 - allow capsed keywords
 - extract table name, column name parsing to a method
 - implement primary constraint (may just primary key flag, no general constraints)
+- add row_id
 - store hashtable for primary keys at the beginning of file or store those in root database file
 - maybe use peek and rewrite parser in more of decoupeled manner?
 - add table column names -> column offset hashmap

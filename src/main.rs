@@ -15,6 +15,7 @@ mod database;
 mod row; // TODO: maybe put it inside database or table?
 mod where_clause;
 mod execution_error;
+mod serialize;
 
 const PROMPT: &str = "yarrd> ";
 
