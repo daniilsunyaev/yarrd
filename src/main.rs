@@ -1,11 +1,8 @@
 use std::io;
-use std::fmt;
 use std::io::Write;
-use std::error::Error;
 
 use crate::command::MetaCommand;
 use crate::database::Database;
-use crate::execution_error::ExecutionError;
 
 mod table;
 mod lexer;

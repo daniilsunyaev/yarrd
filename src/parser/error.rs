@@ -53,7 +53,7 @@ impl<'a> fmt::Display for ParserError<'a> {
             Self::UnknownMetaCommand(command) => format!("unknown meta command '{}'", command),
             Self::ExcessTokens(tokens) =>
                 format!("statement is correct, but contains excess tokens {:?}",
-                        tokens.into_iter().map(|t| t.to_string()).collect::<Vec<String>>()),
+                        tokens.iter().map(|t| t.to_string()).collect::<Vec<String>>()),
             Self::CreateTypeMissing => "CREATE type is not provided".to_string(),
             Self::CreateTypeUnknown(create_type) =>
                 format!("unknown CREATE type '{}', consider using CREATE TABLE", create_type),

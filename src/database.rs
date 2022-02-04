@@ -24,7 +24,7 @@ impl Database {
             Command::InsertInto { table_name, column_names, values } => self.insert_rows(table_name, column_names, values),
             Command::Update { table_name, field_assignments, where_clause } => self.update_rows(table_name, field_assignments, where_clause),
             Command::Delete { table_name, where_clause } => self.delete_rows(table_name, where_clause),
-            Command::VoidCommand => Ok(None),
+            Command::Void => Ok(None),
             // _ => Err(format!("unrecognized command {:?}", command)),
         }
     }

@@ -87,7 +87,7 @@ impl Table {
                         let column_type = self.column_types.get(column_index)
                             .ok_or(ExecutionError::ColumnNthNotExist { column_index, table_name: self.name.clone() })?;
                         column_values.push(column_value.clone());
-                        column_types.push(column_type.clone());
+                        column_types.push(*column_type);
                     },
                     SelectColumnName::AllColumns => {
                         let mut column_values_clone = row.clone();

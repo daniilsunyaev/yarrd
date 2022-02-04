@@ -1,7 +1,6 @@
 use std::error::Error;
 use std::fmt;
 
-use crate::lexer::Token;
 use crate::table::ColumnType;
 use crate::lexer::SqlValue;
 use crate::where_clause::CmpOperator;

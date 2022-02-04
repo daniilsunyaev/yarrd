@@ -1,4 +1,3 @@
-use std::io;
 use std::io::{Read, Write};
 
 use crate::table::ColumnType;

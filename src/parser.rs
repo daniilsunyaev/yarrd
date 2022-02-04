@@ -29,7 +29,7 @@ where
         Some(Token::Update) => parse_update_statement(&mut token)?,
         Some(Token::Delete) => parse_delete_statement(&mut token)?,
         Some(command) => return Err(ParserError::UnknownCommand(command)),
-        _ => return Ok(Command::VoidCommand),
+        _ => return Ok(Command::Void),
     };
 
     let remainder = token.collect::<Vec<&Token>>();
@@ -40,7 +40,7 @@ where
     }
 }
 
-pub fn parse_meta_command<'a>(input: &'a str) -> Result<Option<MetaCommand>, ParserError<'a>> {
+pub fn parse_meta_command(input: &str) -> Result<Option<MetaCommand>, ParserError> {
     if input.starts_with('.') {
         match input {
             ".exit" | ".quit" => Ok(Some(MetaCommand::Exit)),

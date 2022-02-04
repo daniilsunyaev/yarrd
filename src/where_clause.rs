@@ -43,7 +43,7 @@ impl CmpOperator {
                     Self::Equals | Self::NotEquals => {
                         match right {
                             SqlValue::Integer(_rvalue) =>  Err(ExecutionError::CannotCompareWithNumber(left)),
-                            SqlValue::String(rvalue) | SqlValue::Identificator(rvalue) => self.cmp_eq(&lvalue, &rvalue),
+                            SqlValue::String(ref rvalue) | SqlValue::Identificator(ref rvalue) => self.cmp_eq(lvalue, rvalue),
                             SqlValue::Null => Ok(false),
                         }
                     },
