@@ -24,7 +24,7 @@
   - ✓ add serializer/deserializer for each type (or use bincode)
   - ✗ implement custom serializer for rows
   - ✓ change tables to store rows in bytes, and deserialize it on-demand
-  - add serialization/deserialization error and return it in serialize module
+  - ✓ add serialization/deserialization error and return it in serialize module
   - add null bitmask
   - store tables rows on close
   - load tables on db connect

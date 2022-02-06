@@ -121,8 +121,7 @@ impl Table {
             let column_offset = self.column_offset(column_index);
             let column_type = self.column_types[column_index];
 
-            serialize_into(&mut row[column_offset..], column_type, value)
-                .map_err(ExecutionError::DeserializationError)?; // TODO: change to serilization error
+            serialize_into(&mut row[column_offset..], column_type, value)?;
         }
 
         match self.free_rows.pop() {
@@ -149,8 +148,7 @@ impl Table {
                 let column_type = self.column_types[column_table_number];
                 let cell = self.get_cell_mut(update_row_index, column_table_number);
 
-                serialize_into(cell, column_type, column_value)
-                    .map_err(ExecutionError::DeserializationError)?; // TODO: change to serilization error
+                serialize_into(cell, column_type, column_value)?;
             }
         }
 
@@ -239,7 +237,7 @@ impl Table {
     pub fn get_cell_sql_value(&self, row_index: usize, column_index: usize) -> Result<SqlValue, ExecutionError> {
         let cell = self.get_cell(row_index, column_index);
         let column_type = self.column_types[column_index];
-        deserialize(cell, column_type).map_err(ExecutionError::DeserializationError)
+        deserialize(cell, column_type).map_err(|e| e.into())
     }
 
     // fn page_number(row: &Row) -> Option<uint> {

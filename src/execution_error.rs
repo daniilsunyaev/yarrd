@@ -4,6 +4,7 @@ use std::fmt;
 use crate::table::ColumnType;
 use crate::lexer::SqlValue;
 use crate::where_clause::CmpOperator;
+use crate::serialize::SerDeError;
 
 #[derive(Debug)]
 pub enum ExecutionError {
@@ -15,7 +16,7 @@ pub enum ExecutionError {
     CannotCompareWithNumber(SqlValue),
     NonEqualityComparisonWithStrings { operator: CmpOperator, lvalue: String, rvalue: String },
     OperatorNotApplicable { operator: CmpOperator, lvalue: SqlValue, rvalue: SqlValue },
-    DeserializationError(String),
+    SerDeError(SerDeError),
 }
 
 impl fmt::Display for ExecutionError {
@@ -38,11 +39,24 @@ impl fmt::Display for ExecutionError {
             Self::NonEqualityComparisonWithStrings { operator, lvalue, rvalue } =>
                 format!("non-equality operator '{}' cannot be applied to strings '{}' and {}, only '=' or '<>' can be used",
                         operator, lvalue, rvalue),
-            Self::DeserializationError(string) => format!("failed to deserialize data: {}", string),
+            Self::SerDeError(ser_de_error) => ser_de_error.to_string(),
         };
 
         write!(f, "{}", message)
     }
 }
 
-impl Error for ExecutionError {}
+impl From<SerDeError> for ExecutionError {
+    fn from(error: SerDeError) -> Self {
+        Self::SerDeError(error)
+    }
+}
+
+impl Error for ExecutionError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            Self::SerDeError(ser_de_error) => Some(ser_de_error),
+            _ => None,
+        }
+    }
+}
