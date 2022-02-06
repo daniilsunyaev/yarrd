@@ -85,18 +85,19 @@ pub struct WhereClause {
 }
 
 impl WhereClause {
-    pub fn build_filter<'a>(&'a self, table: &'a Table) -> Box<dyn Fn(&'a Vec<SqlValue>) -> Result<bool, ExecutionError> + 'a> {
+    pub fn build_filter<'a>(&'a self, table: &'a Table) -> Box<dyn Fn(usize) -> Result<bool, ExecutionError> + 'a> {
         let get_left_value = self.build_value_getter(table, &self.left_value);
         let get_right_value = self.build_value_getter(table, &self.right_value);
 
-        Box::new(move |row: &Vec<SqlValue>| {
-            self.operator.apply(get_left_value(row), get_right_value(row))
+        Box::new(move |row_index: usize| {
+            let left = get_left_value(row_index)?;
+            let right = get_right_value(row_index)?;
+            self.operator.apply(left, right)
         })
     }
 
-
-    fn build_value_getter<'a>(&'a self, table: &'a Table, value: &'a SqlValue) -> Box<dyn Fn(&'a Vec<SqlValue>) -> SqlValue + 'a> {
-        let dummy_getter = |_row| value.clone();
+    fn build_value_getter<'a>(&'a self, table: &'a Table, value: &'a SqlValue) -> Box<dyn Fn(usize) -> Result<SqlValue, ExecutionError> + 'a> {
+        let dummy_getter = |_row_i| Ok(value.clone());
         let table_name = table.name.as_str();
         let string_value = value.to_string();
         let column_name = {
@@ -115,7 +116,7 @@ impl WhereClause {
         };
 
         if let Some(column_index) = table.column_index(column_name) {
-           Box::new(move |row: &Vec<SqlValue>| row[column_index].clone())
+           Box::new(move |row_index: usize| table.get_cell_sql_value(row_index, column_index))
         } else {
            Box::new(dummy_getter)
         }

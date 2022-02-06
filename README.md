@@ -22,10 +22,13 @@
 - ✓ think of proper error handling
 - allow store tables into files (may need to break this down) (straight bincode serialization)
   - ✓ add serializer/deserializer for each type (or use bincode)
-  - implement custom serializer for rows
-  - change tables to store rows in bytes, and deserialize it on-demand
+  - ✗ implement custom serializer for rows
+  - ✓ change tables to store rows in bytes, and deserialize it on-demand
+  - add serialization/deserialization error and return it in serialize module
+  - add null bitmask
   - store tables rows on close
   - load tables on db connect
+- introduce query result struct instead of Row vec
 - introduce page alignment
 - add Null
 - remove result from where closures, cmp should return false in case of undefined, or think of three-valued logic

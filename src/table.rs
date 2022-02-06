@@ -5,6 +5,10 @@ use crate::where_clause::WhereClause;
 use crate::lexer::SqlValue;
 use crate::row::Row;
 use crate::execution_error::ExecutionError;
+use crate::serialize::{serialize_into, deserialize};
+
+const INTEGER_SIZE: usize = 8;
+const STRING_SIZE: usize = 256;
 
 #[derive(Debug, Clone, Copy)]
 pub enum ColumnType {
@@ -46,7 +50,7 @@ pub struct Table {
     pub name: String,
     pub column_types: Vec<ColumnType>,
     column_names: Vec<String>,
-    rows: Vec<Vec<SqlValue>>,
+    rows: Vec<Vec<u8>>,
     free_rows: Vec<usize>,
 }
 
@@ -73,7 +77,7 @@ impl Table {
         for i in matching_rows_indices {
             let row = &self.rows[i];
 
-            let mut column_values: Vec<SqlValue> = vec![];
+            let mut column_values_data: Vec<u8> = vec![];
             let mut column_types: Vec<ColumnType> = vec![];
 
             for select_column_name in &column_names {
@@ -82,23 +86,21 @@ impl Table {
                         let column_name = column_name.to_string();
                         let column_index = self.column_index(&column_name)
                             .ok_or(ExecutionError::ColumnNotExist { column_name, table_name: self.name.clone() })?;
-                        let column_value = row.get(column_index)
-                            .ok_or(ExecutionError::ColumnNthNotExist { column_index, table_name: self.name.clone() })?;
                         let column_type = self.column_types.get(column_index)
                             .ok_or(ExecutionError::ColumnNthNotExist { column_index, table_name: self.name.clone() })?;
-                        column_values.push(column_value.clone());
+
+                        column_values_data.extend_from_slice(self.get_cell(i, column_index));
                         column_types.push(*column_type);
                     },
                     SelectColumnName::AllColumns => {
-                        let mut column_values_clone = row.clone();
                         let mut column_types_clone = self.column_types.clone();
-                        column_values.append(&mut column_values_clone);
+                        column_values_data.extend_from_slice(&row[..]);
                         column_types.append(&mut column_types_clone);
                     },
                 }
             }
 
-            result_rows.push(Row { column_values, column_types });
+            result_rows.push(Row { column_values: column_values_data, column_types }); // TODO: should be query result (mini table)
         }
 
         Ok(result_rows)
@@ -113,11 +115,14 @@ impl Table {
         let column_indices = self.get_columns_indices(column_names)?;
         self.validate_values_type(&values, &column_indices)?;
 
-        let mut row = vec![SqlValue::Null; self.column_types.len()];
-        for (value_index, value) in values.into_iter().enumerate() {
+        let mut row = vec![0u8; self.row_size()];
+        for (value_index, value) in values.iter().enumerate() {
             let column_index = column_indices[value_index];
+            let column_offset = self.column_offset(column_index);
+            let column_type = self.column_types[column_index];
 
-            row[column_index] = value;
+            serialize_into(&mut row[column_offset..], column_type, value)
+                .map_err(ExecutionError::DeserializationError)?; // TODO: change to serilization error
         }
 
         match self.free_rows.pop() {
@@ -139,9 +144,13 @@ impl Table {
         let update_rows_indices = self.get_matching_rows_indices(where_clause)?;
 
         for update_row_index in update_rows_indices {
-            for (column_index, column_value) in column_values.iter().enumerate() {
-                let column_index = column_indices[column_index];
-                self.rows[update_row_index][column_index] = column_value.clone();
+            for (column_number, column_value) in column_values.iter().enumerate() {
+                let column_table_number = column_indices[column_number];
+                let column_type = self.column_types[column_table_number];
+                let cell = self.get_cell_mut(update_row_index, column_table_number);
+
+                serialize_into(cell, column_type, column_value)
+                    .map_err(ExecutionError::DeserializationError)?; // TODO: change to serilization error
             }
         }
 
@@ -162,7 +171,7 @@ impl Table {
         };
 
         for i in 0..self.rows.len() {
-            if !row_fits_where_clause(&self.rows[i])? || self.free_rows.contains(&i) { continue };
+            if !row_fits_where_clause(i)? || self.free_rows.contains(&i) { continue };
             rows_indices.push(i)
         }
 
@@ -198,6 +207,39 @@ impl Table {
     pub fn column_index(&self, column_name: &str) -> Option<usize> {
         self.column_names.iter()
             .position(|table_column_name| table_column_name.eq(column_name))
+    }
+
+    fn column_offset(&self, column_index: usize) -> usize {
+        (0..column_index).fold(0, |total_size, i| total_size + Self::column_size(self.column_types[i]))
+    }
+
+    fn column_size(column_type: ColumnType) -> usize {
+        match column_type {
+            ColumnType::Integer => INTEGER_SIZE,
+            ColumnType::String => STRING_SIZE,
+        }
+    }
+
+    fn row_size(&self) -> usize {
+        self.column_types.iter().map(|ct| Self::column_size(*ct)).sum()
+    }
+
+    pub fn get_cell(&self, row_index: usize, column_index: usize) -> &[u8] {
+        let offset = self.column_offset(column_index);
+        let cell_size = Self::column_size(self.column_types[column_index]);
+        &self.rows[row_index][offset..(offset + cell_size)]
+    }
+
+    pub fn get_cell_mut(&mut self, row_index: usize, column_index: usize) -> &mut [u8] {
+        let offset = self.column_offset(column_index);
+        let cell_size = Self::column_size(self.column_types[column_index]);
+        &mut self.rows[row_index][offset..(offset + cell_size)]
+    }
+
+    pub fn get_cell_sql_value(&self, row_index: usize, column_index: usize) -> Result<SqlValue, ExecutionError> {
+        let cell = self.get_cell(row_index, column_index);
+        let column_type = self.column_types[column_index];
+        deserialize(cell, column_type).map_err(ExecutionError::DeserializationError)
     }
 
     // fn page_number(row: &Row) -> Option<uint> {

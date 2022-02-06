@@ -1,11 +1,10 @@
-use crate::lexer::SqlValue;
 use crate::table::ColumnType;
 
 
 #[derive(Debug)]
 pub struct Row {
     pub column_types: Vec<ColumnType>,
-    pub column_values: Vec<SqlValue>, // this will be raw data later on
+    pub column_values: Vec<u8>,
 }
 
 impl Row {

@@ -15,6 +15,7 @@ pub enum ExecutionError {
     CannotCompareWithNumber(SqlValue),
     NonEqualityComparisonWithStrings { operator: CmpOperator, lvalue: String, rvalue: String },
     OperatorNotApplicable { operator: CmpOperator, lvalue: SqlValue, rvalue: SqlValue },
+    DeserializationError(String),
 }
 
 impl fmt::Display for ExecutionError {
@@ -37,6 +38,7 @@ impl fmt::Display for ExecutionError {
             Self::NonEqualityComparisonWithStrings { operator, lvalue, rvalue } =>
                 format!("non-equality operator '{}' cannot be applied to strings '{}' and {}, only '=' or '<>' can be used",
                         operator, lvalue, rvalue),
+            Self::DeserializationError(string) => format!("failed to deserialize data: {}", string),
         };
 
         write!(f, "{}", message)
