@@ -25,12 +25,14 @@
   - ✗ implement custom serializer for rows
   - ✓ change tables to store rows in bytes, and deserialize it on-demand
   - ✓ add serialization/deserialization error and return it in serialize module
-  - add null bitmask
+  - ✓ add null bitmask
   - store tables rows on close
   - load tables on db connect
+- fix null ints not allowed
 - introduce query result struct instead of Row vec
+- think of extracting table row to separate class to incapsulate offset operations
 - introduce page alignment
-- add Null
+- add is Null check
 - remove result from where closures, cmp should return false in case of undefined, or think of three-valued logic
 - float values
 - allow capsed keywords

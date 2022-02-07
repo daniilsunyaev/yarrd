@@ -77,6 +77,7 @@ impl Table {
         for i in matching_rows_indices {
             let row = &self.rows[i];
 
+            let mut column_is_null: Vec<bool> = vec![];
             let mut column_values_data: Vec<u8> = vec![];
             let mut column_types: Vec<ColumnType> = vec![];
 
@@ -91,16 +92,30 @@ impl Table {
 
                         column_values_data.extend_from_slice(self.get_cell(i, column_index));
                         column_types.push(*column_type);
+                        column_is_null.push(self.cell_is_null(i, column_index));
                     },
                     SelectColumnName::AllColumns => {
                         let mut column_types_clone = self.column_types.clone();
-                        column_values_data.extend_from_slice(&row[..]);
+                        column_values_data.extend_from_slice(&row[self.column_offset(0)..]);
                         column_types.append(&mut column_types_clone);
+                        for (column_number, _) in column_types.iter().enumerate() {
+                            column_is_null.push(self.cell_is_null(i, column_number));
+                        }
                     },
                 }
             }
 
-            result_rows.push(Row { column_values: column_values_data, column_types }); // TODO: should be query result (mini table)
+            let mut column_values = vec![0u8; (column_types.len() + 7) / 8];
+            println!("bitmask size {} bytes", column_values.len());
+            println!("column is null {:?}", column_is_null);
+            column_values.extend_from_slice(&column_values_data[..]);
+            for i in 0..column_types.len() {
+                if column_is_null[i] {
+                    Self::nullify_cell(&mut column_values, i);
+                }
+            }
+
+            result_rows.push(Row { column_values, column_types }); // TODO: should be query result (mini table)
         }
 
         Ok(result_rows)
@@ -122,6 +137,10 @@ impl Table {
             let column_type = self.column_types[column_index];
 
             serialize_into(&mut row[column_offset..], column_type, value)?;
+            if *value == SqlValue::Null {
+                println!("value is null, nullifying mask");
+                Self::nullify_cell(&mut row, column_index);
+            }
         }
 
         match self.free_rows.pop() {
@@ -149,6 +168,11 @@ impl Table {
                 let cell = self.get_cell_mut(update_row_index, column_table_number);
 
                 serialize_into(cell, column_type, column_value)?;
+                if *column_value == SqlValue::Null {
+                    Self::nullify_cell(&mut self.rows[update_row_index], column_table_number);
+                } else {
+                    Self::denullify_cell(&mut self.rows[update_row_index], column_table_number);
+                }
             }
         }
 
@@ -208,7 +232,8 @@ impl Table {
     }
 
     fn column_offset(&self, column_index: usize) -> usize {
-        (0..column_index).fold(0, |total_size, i| total_size + Self::column_size(self.column_types[i]))
+        self.null_bitmask_size() +
+            (0..column_index).fold(0, |total_size, i| total_size + Self::column_size(self.column_types[i]))
     }
 
     fn column_size(column_type: ColumnType) -> usize {
@@ -219,28 +244,49 @@ impl Table {
     }
 
     fn row_size(&self) -> usize {
-        self.column_types.iter().map(|ct| Self::column_size(*ct)).sum()
+        self.null_bitmask_size() +
+            self.column_types.iter().map(|ct| Self::column_size(*ct)).sum::<usize>()
     }
 
-    pub fn get_cell(&self, row_index: usize, column_index: usize) -> &[u8] {
+    fn null_bitmask_size(&self) -> usize {
+        (self.column_types.len() + 7) / 8
+    }
+
+    fn null_bitmask(&self, row_index: usize) -> &[u8] {
+        &self.rows[row_index][0..self.null_bitmask_size()]
+    }
+
+    fn cell_is_null(&self, row_index: usize, column_index: usize) -> bool {
+        self.null_bitmask(row_index)[column_index / 8] & (1 << (column_index % 8)) != 0
+    }
+
+    fn nullify_cell(row: &mut Vec<u8>, column_index: usize) {
+        row[column_index / 8] |= 1 << (column_index % 8);
+    }
+
+    fn denullify_cell(row: &mut Vec<u8>, column_index: usize) {
+        row[column_index / 8] &= !(1 << (column_index % 8));
+    }
+
+    fn get_cell(&self, row_index: usize, column_index: usize) -> &[u8] {
         let offset = self.column_offset(column_index);
         let cell_size = Self::column_size(self.column_types[column_index]);
         &self.rows[row_index][offset..(offset + cell_size)]
     }
 
-    pub fn get_cell_mut(&mut self, row_index: usize, column_index: usize) -> &mut [u8] {
+    fn get_cell_mut(&mut self, row_index: usize, column_index: usize) -> &mut [u8] {
         let offset = self.column_offset(column_index);
         let cell_size = Self::column_size(self.column_types[column_index]);
         &mut self.rows[row_index][offset..(offset + cell_size)]
     }
 
     pub fn get_cell_sql_value(&self, row_index: usize, column_index: usize) -> Result<SqlValue, ExecutionError> {
-        let cell = self.get_cell(row_index, column_index);
-        let column_type = self.column_types[column_index];
-        deserialize(cell, column_type).map_err(|e| e.into())
+        if self.cell_is_null(row_index, column_index) {
+            Ok(SqlValue::Null)
+        } else {
+            let cell = self.get_cell(row_index, column_index);
+            let column_type = self.column_types[column_index];
+            deserialize(cell, column_type).map_err(|e| e.into())
+        }
     }
-
-    // fn page_number(row: &Row) -> Option<uint> {
-    //     Some(row.id)
-    // }
 }
