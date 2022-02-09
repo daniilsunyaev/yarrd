@@ -1,8 +1,8 @@
-use std::io;
-use std::io::Write;
+use std::io::{self, Write};
 
 use crate::command::MetaCommand;
 use crate::database::Database;
+use crate::meta_command_error::MetaCommandError;
 
 mod table;
 mod lexer;
@@ -12,6 +12,7 @@ mod database;
 mod row; // TODO: maybe put it inside database or table?
 mod where_clause;
 mod execution_error;
+mod meta_command_error;
 mod serialize;
 
 const PROMPT: &str = "yarrd> ";
@@ -22,12 +23,10 @@ fn main() {
     }
 }
 
-fn run() -> Result<(), io::Error> {
+fn run() -> Result<(), MetaCommandError> {
     let mut buffer = String::new();
     let stdin = io::stdin();
-    let mut database = Database::new();
-
-    // let mut table = Table::db_open("./my_database.db").unwrap();
+    let mut database = Database::from("./database.db")?;
 
     loop {
         buffer.clear();
@@ -57,16 +56,13 @@ fn run() -> Result<(), io::Error> {
             Err(error) => println!("error parsing statement: {}", error),
             Ok(command) => {
                 match database.execute(command) {
-                    Ok(result) => {
-                        println!("statement executed successfully");
-                        println!("{:?}", result);
-                    }
+                    Ok(result) => println!("{:?}", result),
                     Err(message) => println!("cannot execute statement: {}", message),
                 }
             },
         }
     };
-    //table.db_close().unwrap();
+    database.close()?;
     Ok(())
 }
 

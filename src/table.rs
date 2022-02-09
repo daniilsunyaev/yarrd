@@ -1,10 +1,12 @@
 use std::fmt;
+use std::io::{self, Write, Read};
 
 use crate::command::{ColumnDefinition, FieldAssignment, SelectColumnName};
 use crate::where_clause::WhereClause;
 use crate::lexer::SqlValue;
 use crate::row::Row;
 use crate::execution_error::ExecutionError;
+use crate::meta_command_error::MetaCommandError;
 use crate::serialize::{serialize_into, deserialize};
 
 const INTEGER_SIZE: usize = 8;
@@ -49,14 +51,13 @@ impl ColumnType {
 pub struct Table {
     pub name: String,
     pub column_types: Vec<ColumnType>,
-    column_names: Vec<String>,
+    pub column_names: Vec<String>,
     rows: Vec<Vec<u8>>,
     free_rows: Vec<usize>,
 }
 
 
 impl Table {
-    // TODO: do we need result?
     pub fn new(name: String, column_definitions: Vec<ColumnDefinition>) -> Table {
         let mut column_names = vec![];
         let mut column_types = vec![];
@@ -67,6 +68,27 @@ impl Table {
         }
 
         Self { name, column_types, column_names, rows: vec![], free_rows: vec![] }
+    }
+
+    pub fn write_rows<W: Write>(&self, mut target: W) -> Result<(), io::Error> {
+        for row in &self.rows {
+            target.write(&row)?;
+        }
+        Ok(())
+    }
+
+    pub fn read_rows<R: Read>(&mut self, mut source: R, total_size: u64) -> Result<(), MetaCommandError> {
+        let row_size = self.row_size();
+        if total_size % row_size as u64 != 0 {
+            return Err(MetaCommandError::TableRowSizeDoesNotMatchSource(row_size, total_size));
+        }
+        for _ in 0..(total_size / row_size as u64) {
+            let mut row = vec![0u8; row_size];
+            source.read(&mut row)?;
+            self.rows.push(row);
+        }
+
+        Ok(())
     }
 
     pub fn select(&self, column_names: Vec<SelectColumnName>, where_clause: Option<WhereClause>) -> Result<Vec<Row>, ExecutionError> {
@@ -130,16 +152,16 @@ impl Table {
         let column_indices = self.get_columns_indices(column_names)?;
         self.validate_values_type(&values, &column_indices)?;
 
-        let mut row = vec![0u8; self.row_size()];
+        let mut row = vec![255u8; self.null_bitmask_size()];
+        row.resize(self.row_size(), 0u8);
         for (value_index, value) in values.iter().enumerate() {
             let column_index = column_indices[value_index];
             let column_offset = self.column_offset(column_index);
             let column_type = self.column_types[column_index];
 
             serialize_into(&mut row[column_offset..], column_type, value)?;
-            if *value == SqlValue::Null {
-                println!("value is null, nullifying mask");
-                Self::nullify_cell(&mut row, column_index);
+            if *value != SqlValue::Null {
+                Self::denullify_cell(&mut row, column_index);
             }
         }
 

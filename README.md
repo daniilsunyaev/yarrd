@@ -20,14 +20,14 @@
 - ✓ execute delete (in-memory)
 - ✓ reuse deleted rows
 - ✓ think of proper error handling
-- allow store tables into files (may need to break this down) (straight bincode serialization)
+- ✓ allow store tables into files (may need to break this down) (straight bincode serialization)
   - ✓ add serializer/deserializer for each type (or use bincode)
   - ✗ implement custom serializer for rows
   - ✓ change tables to store rows in bytes, and deserialize it on-demand
   - ✓ add serialization/deserialization error and return it in serialize module
   - ✓ add null bitmask
-  - store tables rows on close
-  - load tables on db connect
+  - ✓ store tables rows on close
+  - ✓ load tables on db connect
 - fix null ints not allowed
 - introduce query result struct instead of Row vec
 - think of extracting table row to separate class to incapsulate offset operations
@@ -37,6 +37,8 @@
 - float values
 - allow capsed keywords
 - extract table name, column name parsing to a method
+- add .create/.drop metacommand
+- add .connect/.close metacommands
 - implement primary constraint (may just primary key flag, no general constraints)
 - add row_id
 - store hashtable for primary keys at the beginning of file or store those in root database file
