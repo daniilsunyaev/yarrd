@@ -32,7 +32,7 @@ impl ColumnType {
         match self {
             Self::Integer => {
                 match value {
-                    SqlValue::Integer(_) => true,
+                    SqlValue::Integer(_) | SqlValue::Null => true,
                     _ => false,
                 }
             },
