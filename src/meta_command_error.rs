@@ -26,7 +26,6 @@ impl fmt::Display for MetaCommandError {
             Self::SchemaDefinitionInvalid { table_name, expected, actual } =>
                 format!("failed to parse schema definition for table '{}', expected {}, got '{}'",
                         table_name, expected, actual),
-
         };
         write!(f, "{}", message)
     }

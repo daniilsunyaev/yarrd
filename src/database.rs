@@ -7,9 +7,9 @@ use crate::command::{Command, ColumnDefinition, FieldAssignment, SelectColumnNam
 use crate::where_clause::WhereClause;
 use crate::lexer::SqlValue;
 use crate::table::{Table, ColumnType};
-use crate::row::Row;
 use crate::execution_error::ExecutionError;
 use crate::meta_command_error::MetaCommandError;
+use crate::query_result::QueryResult;
 
 pub struct Database {
     tables: HashMap<String, Table>,
@@ -106,7 +106,7 @@ impl Database {
         Ok(())
     }
 
-    pub fn execute(&mut self, command: Command) -> Result<Option<Vec<Row>>, ExecutionError> {
+    pub fn execute(&mut self, command: Command) -> Result<Option<QueryResult>, ExecutionError> {
         match command {
             Command::CreateTable { table_name, columns } => self.create_table(table_name, columns),
             Command::DropTable { table_name } => self.drop_table(table_name),
@@ -118,7 +118,7 @@ impl Database {
         }
     }
 
-    fn create_table(&mut self, table_name: SqlValue, columns: Vec<ColumnDefinition>) -> Result<Option<Vec<Row>>, ExecutionError> {
+    fn create_table(&mut self, table_name: SqlValue, columns: Vec<ColumnDefinition>) -> Result<Option<QueryResult>, ExecutionError> {
         let table_name_string = table_name.to_string();
 
         if self.tables.contains_key(table_name_string.as_str()) {
@@ -131,7 +131,7 @@ impl Database {
         Ok(None)
     }
 
-    fn drop_table(&mut self, table_name: SqlValue) -> Result<Option<Vec<Row>>, ExecutionError> {
+    fn drop_table(&mut self, table_name: SqlValue) -> Result<Option<QueryResult>, ExecutionError> {
         let table_name_string = table_name.to_string();
 
         match self.tables.remove(table_name_string.as_str()) { // TODO: use sql_value.to_string()
@@ -140,7 +140,7 @@ impl Database {
         }
     }
 
-    fn select_rows(&self, table_name: SqlValue, column_names: Vec<SelectColumnName>, where_clause: Option<WhereClause>) -> Result<Option<Vec<Row>>, ExecutionError> {
+    fn select_rows(&self, table_name: SqlValue, column_names: Vec<SelectColumnName>, where_clause: Option<WhereClause>) -> Result<Option<QueryResult>, ExecutionError> {
         let table_name_string = table_name.to_string();
         let table = match self.tables.get(table_name_string.as_str()) {
             None => return Err(ExecutionError::TableNotExist(table_name_string)),
@@ -150,7 +150,7 @@ impl Database {
         Ok(Some(table.select(column_names, where_clause)?))
     }
 
-    fn insert_rows(&mut self, table_name: SqlValue, column_names: Option<Vec<SqlValue>>, values: Vec<SqlValue>) -> Result<Option<Vec<Row>>, ExecutionError> {
+    fn insert_rows(&mut self, table_name: SqlValue, column_names: Option<Vec<SqlValue>>, values: Vec<SqlValue>) -> Result<Option<QueryResult>, ExecutionError> {
         let table_name_string = table_name.to_string();
         let table = match self.tables.get_mut(table_name_string.as_str()) {
             None => return Err(ExecutionError::TableNotExist(table_name_string)),
@@ -163,7 +163,7 @@ impl Database {
         Ok(None)
     }
 
-    fn update_rows(&mut self, table_name: SqlValue, field_assignments: Vec<FieldAssignment>, where_clause: Option<WhereClause>) -> Result<Option<Vec<Row>>, ExecutionError> {
+    fn update_rows(&mut self, table_name: SqlValue, field_assignments: Vec<FieldAssignment>, where_clause: Option<WhereClause>) -> Result<Option<QueryResult>, ExecutionError> {
         let table_name_string = table_name.to_string();
         let table = match self.tables.get_mut(table_name_string.as_str()) {
             None => return Err(ExecutionError::TableNotExist(table_name_string)),
@@ -174,7 +174,7 @@ impl Database {
         Ok(None)
     }
 
-    fn delete_rows(&mut self, table_name: SqlValue, where_clause: Option<WhereClause>) -> Result<Option<Vec<Row>>, ExecutionError> {
+    fn delete_rows(&mut self, table_name: SqlValue, where_clause: Option<WhereClause>) -> Result<Option<QueryResult>, ExecutionError> {
         let table_name_string = table_name.to_string();
         let table = match self.tables.get_mut(table_name_string.as_str()) {
             None => return Err(ExecutionError::TableNotExist(table_name_string)),

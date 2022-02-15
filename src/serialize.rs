@@ -4,6 +4,7 @@ use std::fmt;
 
 use crate::table::ColumnType;
 use crate::lexer::SqlValue;
+use crate::row;
 
 #[derive(Debug)]
 pub enum SerDeError {
@@ -79,7 +80,7 @@ pub fn deserialize<R: Read>(mut source: R, column_type: ColumnType) -> Result<Sq
     }
 }
 
-fn serialize_int(value: &SqlValue) -> Result<[u8; 8], SerDeError> {
+fn serialize_int(value: &SqlValue) -> Result<[u8; row::INTEGER_SIZE], SerDeError> {
     match value {
         SqlValue::Integer(int) => Ok(int.to_le_bytes()),
         SqlValue::String(string) | SqlValue::Identificator(string) =>
@@ -88,7 +89,7 @@ fn serialize_int(value: &SqlValue) -> Result<[u8; 8], SerDeError> {
     }
 }
 
-fn serialize_string(value: &SqlValue) -> [u8; 256] {
+fn serialize_string(value: &SqlValue) -> [u8; row::STRING_SIZE] {
     match value {
         SqlValue::Integer(int) => {
             let string = int.to_string();
@@ -99,7 +100,7 @@ fn serialize_string(value: &SqlValue) -> [u8; 256] {
     }
 }
 
-fn serialize_native_string(string: &str) -> [u8; 256] {
+fn serialize_native_string(string: &str) -> [u8; row::STRING_SIZE] {
     let len = string.len();
     let mut result = [0u8; 256];
     result[0] = len as u8;

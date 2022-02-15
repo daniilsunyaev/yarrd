@@ -29,14 +29,17 @@
   - ✓ store tables rows on close
   - ✓ load tables on db connect
 - ✓ fix null ints not allowed
-- introduce query result struct instead of Row vec
-- think of extracting table row to separate class to incapsulate offset operations
-- introduce page alignment
+- ✓ introduce query result struct instead of Row vec
+- ✓ think of extracting table row to separate class to incapsulate offset operations
+- introduce page alignment (may need to break down)
+- think of bitwise version of cmp operator
 - add is Null check
 - remove result from where closures, cmp should return false in case of undefined, or think of three-valued logic
 - float values
 - allow capsed keywords
 - extract table name, column name parsing to a method
+- alter table parsing
+- alter table execution
 - add .create/.drop metacommand
 - add .connect/.close metacommands
 - implement primary constraint (may just primary key flag, no general constraints)

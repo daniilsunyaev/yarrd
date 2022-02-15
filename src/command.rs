@@ -63,7 +63,7 @@ mod tests {
 
     #[test]
     fn create_and_drop_table() {
-        let mut database = Database::new();
+        let mut database = open_test_database();
         let create_table = Command::CreateTable {
             table_name: SqlValue::Identificator("users".to_string()),
             columns: vec![
@@ -89,7 +89,7 @@ mod tests {
 
     #[test]
     fn drop_non_existing_table() {
-        let mut database = Database::new();
+        let mut database = open_test_database();
         let drop_table = Command::DropTable {
             table_name: SqlValue::Identificator("users".to_string()),
         };
@@ -99,7 +99,7 @@ mod tests {
 
     #[test]
     fn insert_and_select_from_table() {
-        let mut database = Database::new();
+        let mut database = open_test_database();
         let create_table = Command::CreateTable {
             table_name: SqlValue::Identificator("users".to_string()),
             columns: vec![
@@ -152,7 +152,7 @@ mod tests {
 
     #[test]
     fn insert_and_update_table() {
-        let mut database = Database::new();
+        let mut database = open_test_database();
         let create_table = Command::CreateTable {
             table_name: SqlValue::Identificator("users".to_string()),
             columns: vec![
@@ -201,7 +201,7 @@ mod tests {
 
     #[test]
     fn insert_delete_and_select_from_table() {
-        let mut database = Database::new();
+        let mut database = open_test_database();
         let create_table = Command::CreateTable {
             table_name: SqlValue::Identificator("users".to_string()),
             columns: vec![
@@ -247,5 +247,9 @@ mod tests {
 
         let select_rows = select_result.unwrap().unwrap();
         assert_eq!(select_rows.len(), 0);
+    }
+
+    fn open_test_database() -> Database {
+        Database::from("./fixtures/database.db").unwrap()
     }
 }

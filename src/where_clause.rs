@@ -3,6 +3,7 @@ use std::fmt;
 use crate::lexer::SqlValue;
 use crate::table::Table;
 use crate::execution_error::ExecutionError;
+use crate::row::Row;
 
 #[derive(Debug, Clone, Copy)]
 pub enum CmpOperator {
@@ -85,19 +86,19 @@ pub struct WhereClause {
 }
 
 impl WhereClause {
-    pub fn build_filter<'a>(&'a self, table: &'a Table) -> Box<dyn Fn(usize) -> Result<bool, ExecutionError> + 'a> {
+    pub fn build_filter<'a>(&'a self, table: &'a Table) -> Box<dyn Fn(&'a Row) -> Result<bool, ExecutionError> + 'a> {
         let get_left_value = self.build_value_getter(table, &self.left_value);
         let get_right_value = self.build_value_getter(table, &self.right_value);
 
-        Box::new(move |row_index: usize| {
-            let left = get_left_value(row_index)?;
-            let right = get_right_value(row_index)?;
+        Box::new(move |row: &'a Row| {
+            let left = get_left_value(row)?;
+            let right = get_right_value(row)?;
             self.operator.apply(left, right)
         })
     }
 
-    fn build_value_getter<'a>(&'a self, table: &'a Table, value: &'a SqlValue) -> Box<dyn Fn(usize) -> Result<SqlValue, ExecutionError> + 'a> {
-        let dummy_getter = |_row_i| Ok(value.clone());
+    fn build_value_getter<'a>(&'a self, table: &'a Table, value: &'a SqlValue) -> Box<dyn Fn(&'a Row) -> Result<SqlValue, ExecutionError> + 'a> {
+        let dummy_getter = |_row| Ok(value.clone());
         let table_name = table.name.as_str();
         let string_value = value.to_string();
         let column_name = {
@@ -116,7 +117,7 @@ impl WhereClause {
         };
 
         if let Some(column_index) = table.column_index(column_name) {
-           Box::new(move |row_index: usize| table.get_cell_sql_value(row_index, column_index))
+           Box::new(move |row: &'a Row| row.get_cell_sql_value(&table.column_types, column_index))
         } else {
            Box::new(dummy_getter)
         }
