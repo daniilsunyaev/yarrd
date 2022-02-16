@@ -15,6 +15,7 @@ mod where_clause;
 mod execution_error;
 mod meta_command_error;
 mod serialize;
+mod pager;
 
 const PROMPT: &str = "yarrd> ";
 

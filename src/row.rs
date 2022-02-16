@@ -3,8 +3,8 @@ use crate::serialize::{deserialize, serialize_into, SerDeError};
 use crate::execution_error::ExecutionError;
 use crate::lexer::SqlValue;
 
-const INTEGER_SIZE: usize = 8;
-const STRING_SIZE: usize = 256;
+pub const INTEGER_SIZE: usize = 8;
+pub const STRING_SIZE: usize = 256;
 
 #[derive(Debug)]
 struct ByteLayout {

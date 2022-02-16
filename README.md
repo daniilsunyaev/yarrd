@@ -32,6 +32,9 @@
 - ✓ introduce query result struct instead of Row vec
 - ✓ think of extracting table row to separate class to incapsulate offset operations
 - introduce page alignment (may need to break down)
+  - ✓ create simple lru storage
+  - read page from disk, flush page, provide destructor which flushes pages on disk
+  - use pager in table for read/write operations
 - think of bitwise version of cmp operator
 - add is Null check
 - remove result from where closures, cmp should return false in case of undefined, or think of three-valued logic
