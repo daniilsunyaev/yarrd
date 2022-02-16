@@ -101,7 +101,7 @@ impl Database {
             for i in 0..table.column_types.len() {
                 write!(database_file, " {} {}", table.column_names[i], table.column_types[i])?;
             }
-            writeln!(database_file, "")?;
+            writeln!(database_file)?;
         }
         Ok(())
     }

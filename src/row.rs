@@ -1,3 +1,5 @@
+use std::cmp::Ordering;
+
 use crate::table::ColumnType;
 use crate::serialize::{deserialize, serialize_into, SerDeError};
 use crate::execution_error::ExecutionError;
@@ -21,13 +23,14 @@ impl ByteLayout {
     }
 
     fn column_size(&self, index: usize) -> usize {
-        if index == self.columns_offsets.len() -1 {
-            self.row_size - self.columns_offsets[index]
-        } else if index < self.columns_offsets.len() -1 {
-            self.columns_offsets[index + 1] - self.columns_offsets[index]
-        } else {
-            panic!("index is out of bounds, cannot get column {} when there are only {} columns",
-                   index, self.columns_offsets.len())
+        let max_index = self.columns_offsets.len() - 1;
+        match index.cmp(&max_index) {
+            Ordering::Equal => self.row_size - self.columns_offsets[max_index],
+            Ordering::Less => self.columns_offsets[index + 1] - self.columns_offsets[index],
+            Ordering::Greater => {
+                panic!("index is out of bounds, cannot get column with index {} when there are only {} columns",
+                       index, self.columns_offsets.len())
+            }
         }
     }
 }
@@ -71,7 +74,7 @@ impl Row {
         let layout = Self::generate_byte_layout(column_types);
         let column_offset = layout.columns_offsets[column_index];
 
-        serialize_into(&mut self.bytes[column_offset..], column_types[column_index], &value)?;
+        serialize_into(&mut self.bytes[column_offset..], column_types[column_index], value)?;
         if *value == SqlValue::Null {
             self.nullify_cell(column_index);
         } else {
@@ -87,9 +90,8 @@ impl Row {
 
     fn set_cell_bytes_with_layout(&mut self, column_index: usize, bytes: &[u8], is_null: bool, layout: &ByteLayout) -> Result<(), SerDeError> {
         let offset = layout.columns_offsets[column_index];
-        for i in 0..layout.column_size(column_index) {
-            self.bytes[offset + i] = bytes[i];
-        }
+        let cell_size = layout.column_size(column_index);
+        self.bytes[offset..offset + cell_size].clone_from_slice(&bytes[..cell_size]);
 
         if is_null {
             self.nullify_cell(column_index);

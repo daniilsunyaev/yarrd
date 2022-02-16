@@ -73,7 +73,7 @@ impl Table {
             if self.free_rows.contains(&i) { continue }
 
             let row = &self.rows[i];
-            target.write(row.as_bytes())?;
+            target.write_all(row.as_bytes())?;
         }
         Ok(())
     }
@@ -85,7 +85,7 @@ impl Table {
         }
         for _ in 0..(total_size / row_size as u64) {
             let mut row_data = vec![0u8; row_size];
-            source.read(&mut row_data)?;
+            source.read_exact(&mut row_data)?;
             let row = Row::from_bytes(row_data);//, &self.column_types);
             self.rows.push(row);
         }
