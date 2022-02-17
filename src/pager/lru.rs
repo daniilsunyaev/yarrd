@@ -63,25 +63,30 @@ impl<K: Eq + Hash + Clone, V> Lru<K, V> {
         }
     }
 
-    pub fn set(&mut self, key: K, value: V) {
+    pub fn set(&mut self, key: K, value: V) -> Option<V> {
         match self.key_location.get(&key) {
             Some(&key_index) => {
                 self.use_sequence[key_index].value = Some(value);
                 self.bump_key(key_index);
+                None
             },
             None => {
                 let old_node = &self.use_sequence[self.current];
-                if old_node.key.is_some() {
-                    self.key_location.remove(old_node.key.as_ref().unwrap());
-                }
+                match &old_node.key {
+                    Some(key) => self.key_location.remove(key),
+                    None => None,
+                    //self.key_location.remove(old_node.key.as_ref().unwrap());
+                };
                 self.key_location.insert(key.clone(), self.current);
 
+                let mut value_opt = Some(value);
                 self.use_sequence[self.current].key = Some(key);
-                self.use_sequence[self.current].value = Some(value);
+                std::mem::swap(&mut self.use_sequence[self.current].value, &mut value_opt);
                 self.increment_current();
+                value_opt
             },
 
-        };
+        }
     }
 
     fn bump_key(&mut self, key_index: usize) {
@@ -130,12 +135,13 @@ mod tests {
     #[test]
     fn set_get_2() {
         let mut lru = Lru::<i32, i32>::new(2).unwrap();
-        lru.set(1, 1);
-        lru.set(2, 2);
+
+        assert!(lru.set(1, 1).is_none());
+        assert!(lru.set(2, 2).is_none());
 
         assert_eq!(lru.get(1), Some(&1));
 
-        lru.set(3, 3);
+        assert_eq!(lru.set(3, 3), Some(2));
 
         assert_eq!(lru.get(1), Some(&1));
         assert_eq!(lru.get(2), None);
@@ -145,25 +151,26 @@ mod tests {
     #[test]
     fn set_get_3() {
         let mut lru = Lru::<String, &str>::new(3).unwrap();
-        lru.set(1.to_string(), "one");
-        lru.set(2.to_string(), "two");
+        assert!(lru.set(1.to_string(), "one").is_none());
+        assert!(lru.set(2.to_string(), "two").is_none());
 
         assert_eq!(lru.get(1.to_string()), Some(&"one"));
 
-        lru.set(3.to_string(), "three");
+        assert!(lru.set(3.to_string(), "three").is_none());
 
         assert_eq!(lru.get(3.to_string()), Some(&"three"));
         assert_eq!(lru.get(1.to_string()), Some(&"one"));
         assert_eq!(lru.get(2.to_string()), Some(&"two"));
 
-        lru.set(4.to_string(), "four");
+        assert_eq!(lru.set(4.to_string(), "four"), Some("three"));
+
         assert_eq!(lru.get(4.to_string()), Some(&"four"));
         assert_eq!(lru.get(3.to_string()), None);
         assert_eq!(lru.get(2.to_string()), Some(&"two"));
         assert_eq!(lru.get(1.to_string()), Some(&"one"));
 
-        lru.set(5.to_string(), "five");
-        lru.set(6.to_string(), "six");
+        assert_eq!(lru.set(5.to_string(), "five"), Some("four"));
+        assert_eq!(lru.set(6.to_string(), "six"), Some("two"));
 
         assert_eq!(lru.get(1.to_string()), Some(&"one"));
         assert_eq!(lru.get(2.to_string()), None);
