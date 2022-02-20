@@ -17,6 +17,9 @@ mod meta_command_error;
 mod serialize;
 mod pager;
 
+#[cfg(test)]
+mod temp_file;
+
 const PROMPT: &str = "yarrd> ";
 
 fn main() {
