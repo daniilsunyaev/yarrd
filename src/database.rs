@@ -1,7 +1,7 @@
 use std::collections::HashMap;
-use std::io::{self, BufRead, BufReader, Write};
-use std::fs::OpenOptions;
-use std::path::Path;
+use std::io::{BufRead, BufReader, Write};
+use std::fs::{self, File, OpenOptions};
+use std::path::{Path, PathBuf};
 
 use crate::command::{Command, ColumnDefinition, FieldAssignment, SelectColumnName};
 use crate::where_clause::WhereClause;
@@ -11,42 +11,40 @@ use crate::execution_error::ExecutionError;
 use crate::meta_command_error::MetaCommandError;
 use crate::query_result::QueryResult;
 
+const TABLE_EXTENSION: &str = "table";
+
 pub struct Database {
     tables: HashMap<String, Table>,
-    database_filename: String,
-    tables_dir: String,
+    database_filepath: PathBuf,
+    tables_dir: PathBuf,
 }
 
 impl Database {
-    pub fn from(filename: &str) -> Result<Database, MetaCommandError> {
+    pub fn from(database_filepath: &Path) -> Result<Database, MetaCommandError> {
         let mut tables = HashMap::new();
         let file = OpenOptions::new()
             .read(true)
             .write(true)
-            .open(filename)?;
+            .open(database_filepath)?;
 
         let mut reader = BufReader::new(file);
         let mut tables_dir = String::new();
         reader.read_line(&mut tables_dir)?;
-        if !Path::new(tables_dir.trim()).is_dir() {
+        let tables_dir = PathBuf::from(tables_dir.trim());
+        if !tables_dir.is_dir() {
             return Err(MetaCommandError::DatabaseTablesDirNotExist(tables_dir));
         }
 
         for line in reader.lines() {
             let line = line?;
-            let mut table = Self::parse_schema_line(line.trim())?;
-            let table_file = OpenOptions::new()
-                .read(true)
-                .open(format!("{}/{}.table", tables_dir.trim(), table.name.trim()))?;
-            let table_file_size = table_file.metadata()?.len();
-            table.read_rows(table_file, table_file_size)?;
+            let table = Self::parse_schema_line(tables_dir.as_path(), line.trim())?;
             tables.insert(table.name.clone(), table);
         }
 
-        Ok(Self { tables, database_filename: filename.to_string(), tables_dir: tables_dir.trim().to_string() })
+        Ok(Self { tables, database_filepath: PathBuf::from(database_filepath), tables_dir })
     }
 
-    fn parse_schema_line(table_definition_line: &str) -> Result<Table, MetaCommandError> {
+    fn parse_schema_line(tables_dir: &Path, table_definition_line: &str) -> Result<Table, MetaCommandError> {
         let mut word_iter = table_definition_line.split_whitespace();
         let table_name = word_iter.next()
             .ok_or(MetaCommandError::SchemaDefinitionMissing)?;
@@ -80,30 +78,26 @@ impl Database {
                 kind: column_type
             });
         }
+        let table_filepath = Self::table_filepath(&tables_dir, table_name);
 
-        Ok(Table::new(table_name.to_string(), column_definitions))
+        Ok(Table::new(table_filepath, table_name, column_definitions)?)
     }
 
-    pub fn close(self) -> Result<(), io::Error> {
+    // TODO: return result instead of unwrapping and handle err (probably via logging)
+    pub fn close(self) {
         let mut database_file = OpenOptions::new()
             .write(true)
-            .open(self.database_filename)?;
+            .truncate(true)
+            .open(self.database_filepath).unwrap();
 
-        writeln!(database_file, "{}", self.tables_dir)?;
+        writeln!(database_file, "{}", self.tables_dir.to_str().unwrap()).unwrap();
         for (table_name, table) in self.tables {
-            let table_file = OpenOptions::new()
-                .write(true)
-                .create(true)
-                .open(format!("{}/{}.table", self.tables_dir, table_name))?;
-            table.write_rows(table_file)?;
-
-            write!(database_file, "{}", table_name)?;
+            write!(database_file, "{}", table_name).unwrap();
             for i in 0..table.column_types.len() {
-                write!(database_file, " {} {}", table.column_names[i], table.column_types[i])?;
+                write!(database_file, " {} {}", table.column_names[i], table.column_types[i]).unwrap();
             }
-            writeln!(database_file)?;
+            writeln!(database_file).unwrap();
         }
-        Ok(())
     }
 
     pub fn execute(&mut self, command: Command) -> Result<Option<QueryResult>, ExecutionError> {
@@ -120,12 +114,15 @@ impl Database {
 
     fn create_table(&mut self, table_name: SqlValue, columns: Vec<ColumnDefinition>) -> Result<Option<QueryResult>, ExecutionError> {
         let table_name_string = table_name.to_string();
+        let table_filepath = Self::table_filepath(&self.tables_dir.as_path(), table_name_string.as_str());
 
         if self.tables.contains_key(table_name_string.as_str()) {
             return Err(ExecutionError::TableAlreadyExist(table_name_string));
         }
 
-        let table = Table::new(table_name_string.clone(), columns);
+        File::create(table_filepath.as_path())?;
+
+        let table = Table::new(table_filepath, table_name_string.as_str(), columns)?;
         self.tables.insert(table_name_string, table);
 
         Ok(None)
@@ -134,15 +131,18 @@ impl Database {
     fn drop_table(&mut self, table_name: SqlValue) -> Result<Option<QueryResult>, ExecutionError> {
         let table_name_string = table_name.to_string();
 
-        match self.tables.remove(table_name_string.as_str()) { // TODO: use sql_value.to_string()
+        match self.tables.remove(table_name_string.as_str()) {
             None => Err(ExecutionError::TableNotExist(table_name_string)),
-            Some(_) => Ok(None)
+            Some(_) => {
+                fs::remove_file(Self::table_filepath(&self.tables_dir.as_path(), table_name_string.as_str()))?;
+                Ok(None)
+            },
         }
     }
 
-    fn select_rows(&self, table_name: SqlValue, column_names: Vec<SelectColumnName>, where_clause: Option<WhereClause>) -> Result<Option<QueryResult>, ExecutionError> {
+    fn select_rows(&mut self, table_name: SqlValue, column_names: Vec<SelectColumnName>, where_clause: Option<WhereClause>) -> Result<Option<QueryResult>, ExecutionError> {
         let table_name_string = table_name.to_string();
-        let table = match self.tables.get(table_name_string.as_str()) {
+        let table = match self.tables.get_mut(table_name_string.as_str()) {
             None => return Err(ExecutionError::TableNotExist(table_name_string)),
             Some(existing_table) => existing_table,
         };
@@ -183,5 +183,11 @@ impl Database {
 
         table.delete(where_clause)?;
         Ok(None)
+    }
+
+    fn table_filepath(tables_dir: &Path, table_name: &str) -> PathBuf {
+        let mut path = tables_dir.join(table_name);
+        path.set_extension(TABLE_EXTENSION);
+        path
     }
 }

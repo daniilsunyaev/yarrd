@@ -1,3 +1,14 @@
+# YARRD
+
+stands for Yet Another Row-oriented Relational Database
+
+General assumptions:
+- row oriented
+- relational (well, it is not yet)
+- single threaded
+- sql-like syntax, no subqueries
+- no external dependencies
+
 ### Checklist
 - ✓ add prompt
 - ✓ add basic lexer
@@ -34,19 +45,25 @@
 - introduce page alignment (may need to break down)
   - ✓ create simple lru storage
   - ✓ read page from disk, flush page
-  - use pager in table for read/write operations
+  - ✓ use pager in table for read/write operations
+  - ✓ track max rows to avoid getting deleted rows at the end of last page
+  - add flushed flag to page
 - think of bitwise version of cmp operator
 - use tempfile dir in command specs
+- extract page to separate file
 - add is Null check
 - remove result from where closures, cmp should return false in case of undefined, or think of three-valued logic
+- add hard limit to row size
 - float values
+- think of table error or table init error
 - allow capsed keywords
 - extract table name, column name parsing to a method
 - alter table parsing
 - alter table execution
+- implement vacuum metacommand or something like that
 - add .create/.drop metacommand
 - add .connect/.close metacommands
-- implement primary constraint (may just primary key flag, no general constraints)
+- implement primary constraint (may be just a primary key flag, no general constraints)
 - add row_id
 - store hashtable for primary keys at the beginning of file or store those in root database file
 - maybe use peek and rewrite parser in more of decoupeled manner?
@@ -55,5 +72,6 @@
 - implement limit
 - implement joins
 - WAL
+- handle errors on db close and flush
 - restore from journal
 - transactions

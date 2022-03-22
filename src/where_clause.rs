@@ -1,9 +1,45 @@
 use std::fmt;
 
 use crate::lexer::SqlValue;
-use crate::table::Table;
 use crate::execution_error::ExecutionError;
 use crate::row::Row;
+use crate::table::ColumnType;
+
+#[derive(Debug)]
+pub enum WhereValue {
+    TableColumn(usize),
+    Value(SqlValue),
+}
+
+#[derive(Debug)]
+pub struct WhereFilter<'a> {
+    operator: CmpOperator,
+    left: WhereValue,
+    right: WhereValue,
+    column_types: &'a [ColumnType],
+}
+
+impl<'a> WhereFilter<'a> {
+    pub fn dummy() -> Self {
+        Self {
+            operator: CmpOperator::Equals,
+            left: WhereValue::Value(SqlValue::Integer(1)),
+            right: WhereValue::Value(SqlValue::Integer(1)),
+            column_types: &[],
+        }
+    }
+
+    pub fn matches(&'a self, row: &'a Row) -> Result<bool, ExecutionError> {
+        self.operator.apply(&self.get_value(&self.left, row)?, &self.get_value(&self.right, row)?)
+    }
+
+    fn get_value(&'a self, value: &'a WhereValue, row: &'a Row) -> Result<SqlValue, ExecutionError> {
+        match value {
+            WhereValue::Value(sql_value) => Ok(sql_value.clone()),
+            WhereValue::TableColumn(index) => row.get_cell_sql_value(self.column_types, *index),
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy)]
 pub enum CmpOperator {
@@ -29,13 +65,13 @@ impl<'a> fmt::Display for CmpOperator {
 }
 
 impl CmpOperator {
-    pub fn apply(&self, left: SqlValue, right: SqlValue) -> Result<bool, ExecutionError> {
+    pub fn apply(&self, left: &SqlValue, right: &SqlValue) -> Result<bool, ExecutionError> {
         match left {
             SqlValue::Integer(lvalue) => {
                 match right {
                     SqlValue::Integer(rvalue) => Ok(self.cmp_ord(lvalue, rvalue)),
                     SqlValue::Null => Ok(false),
-                    _ => Err(ExecutionError::CannotCompareWithNumber(right)),
+                    _ => Err(ExecutionError::CannotCompareWithNumber(right.clone())),
                 }
 
             },
@@ -43,12 +79,12 @@ impl CmpOperator {
                 match self {
                     Self::Equals | Self::NotEquals => {
                         match right {
-                            SqlValue::Integer(_rvalue) =>  Err(ExecutionError::CannotCompareWithNumber(left)),
+                            SqlValue::Integer(_rvalue) =>  Err(ExecutionError::CannotCompareWithNumber(left.clone())),
                             SqlValue::String(ref rvalue) | SqlValue::Identificator(ref rvalue) => self.cmp_eq(lvalue, rvalue),
                             SqlValue::Null => Ok(false),
                         }
                     },
-                    _ => Err(ExecutionError::OperatorNotApplicable { operator: *self, lvalue: left, rvalue: right })
+                    _ => Err(ExecutionError::OperatorNotApplicable { operator: *self, lvalue: left.clone(), rvalue: right.clone() })
                 }
             },
             SqlValue::Null => Ok(false)
@@ -86,40 +122,43 @@ pub struct WhereClause {
 }
 
 impl WhereClause {
-    pub fn build_filter<'a>(&'a self, table: &'a Table) -> Box<dyn Fn(&'a Row) -> Result<bool, ExecutionError> + 'a> {
-        let get_left_value = self.build_value_getter(table, &self.left_value);
-        let get_right_value = self.build_value_getter(table, &self.right_value);
+    pub fn compile<'a>(self, column_types: &'a [ColumnType], table_name: &'a str, column_names: &'a [String]) -> WhereFilter<'a> {
+        let left = Self::build_where_value(self.left_value, table_name, column_names);
+        let right = Self::build_where_value(self.right_value, table_name, column_names);
 
-        Box::new(move |row: &'a Row| {
-            let left = get_left_value(row)?;
-            let right = get_right_value(row)?;
-            self.operator.apply(left, right)
-        })
+        WhereFilter {
+            operator: self.operator,
+            left,
+            right,
+            column_types,
+        }
     }
 
-    fn build_value_getter<'a>(&'a self, table: &'a Table, value: &'a SqlValue) -> Box<dyn Fn(&'a Row) -> Result<SqlValue, ExecutionError> + 'a> {
-        let dummy_getter = |_row| Ok(value.clone());
-        let table_name = table.name.as_str();
+    pub fn build_where_value(value: SqlValue, table_name: &str, column_names: &[String]) -> WhereValue {
         let string_value = value.to_string();
-        let column_name = {
-            let splitted_identificator: Vec<&str> = string_value.split('.').collect();
-            match splitted_identificator.len() {
-                1 => string_value.as_str(),
-                2 => {
-                    if !splitted_identificator[0].eq(table_name) {
-                        return Box::new(dummy_getter);
-                    } else {
-                        splitted_identificator[1]
-                    }
-                },
-                _ => return Box::new(dummy_getter),
+        let splitted_identificator: Vec<&str> = string_value.split('.').collect();
+        match splitted_identificator.len() {
+            1 => {
+                let index = column_names.iter()
+                    .position(|table_column_name| table_column_name.eq(&string_value));
+                match index {
+                    None => WhereValue::Value(value),
+                    Some(i) => WhereValue::TableColumn(i),
+                }
             }
-        };
-
-        if let Some(column_index) = table.column_index(column_name) {
-           Box::new(move |row: &'a Row| row.get_cell_sql_value(&table.column_types, column_index))
-        } else {
-           Box::new(dummy_getter)
+            2 => {
+                if !splitted_identificator[0].eq(table_name) {
+                    WhereValue::Value(value)
+                } else {
+                    let index = column_names.iter()
+                        .position(|table_column_name| table_column_name.eq(splitted_identificator[1]));
+                    match index {
+                        None => WhereValue::Value(value),
+                        Some(i) => WhereValue::TableColumn(i),
+                    }
+                }
+            },
+            _ => WhereValue::Value(value),
         }
     }
 }

@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
 use std::hash::Hash;
+use std::iter::Map;
 
 #[derive(Debug)]
 pub enum LruError {
@@ -19,7 +20,7 @@ impl fmt::Display for LruError {
 impl Error for LruError { }
 
 #[derive(Debug)]
-struct LinkedNode<K, V> {
+pub struct LinkedNode<K, V> {
     next: usize,
     prev: usize,
     key: Option<K>,
@@ -61,6 +62,20 @@ impl<K: Eq + Hash + Copy, V> Lru<K, V> {
             },
             None => None,
         }
+    }
+
+    pub fn get_mut(&mut self, key: &K) -> Option<&mut V> {
+        match self.key_location.get(key) {
+            Some(&key_index) => {
+                self.bump_key(key_index);
+                self.use_sequence[key_index].value.as_mut()
+            },
+            None => None,
+        }
+    }
+
+    pub fn contains_key(&self, key: &K) -> bool {
+        self.key_location.contains_key(key)
     }
 
     pub fn set(&mut self, key: K, value: V) -> Option<(K, V)> {
@@ -109,7 +124,6 @@ impl<K: Eq + Hash + Copy, V> Lru<K, V> {
         if key_index == self.current {
             self.increment_current();
         } else if self.use_sequence[self.current].prev == key_index {
-            return;
         } else {
             let recent_index = self.use_sequence[self.current].prev;
             self.use_sequence[recent_index].next = key_index;
@@ -122,6 +136,31 @@ impl<K: Eq + Hash + Copy, V> Lru<K, V> {
     fn increment_current(&mut self) {
         self.current = self.use_sequence[self.current].next;
     }
+}
+
+impl<K, V> IntoIterator for Lru<K, V> {
+    type Item = Option<(K, V)>;
+    type IntoIter = Map<std::vec::IntoIter<LinkedNode<K, V>>, fn(LinkedNode<K, V>) -> Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.use_sequence.into_iter().map(|node| {
+            match (node.key, node.value) {
+                (Some(key), Some(value)) => Some((key, value)),
+                _ => None,
+            }
+        })
+    }
+}
+
+impl<K, V> Default for Lru<K, V> {
+    fn default() -> Self {
+        Self {
+            key_location: HashMap::new(),
+            use_sequence: vec![],
+            current: 0,
+        }
+    }
+
 }
 
 #[cfg(test)]
@@ -183,5 +222,16 @@ mod tests {
         assert_eq!(lru.get(&4), None);
         assert_eq!(lru.get(&5), Some(&"five"));
         assert_eq!(lru.get(&6), Some(&"six"));
+    }
+
+    #[test]
+    fn iterate() {
+        let mut lru = Lru::<i32, &str>::new(2).unwrap();
+        lru.set(1, "one");
+        lru.set(2, "two");
+        lru.set(3, "three");
+        let contents: Vec<(i32, &str)> = lru.into_iter().map(|el| el.unwrap()).collect();
+
+        assert!(matches!(contents[..], [(3, "three"), (2, "two")]));
     }
 }

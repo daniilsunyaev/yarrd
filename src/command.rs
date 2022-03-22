@@ -60,10 +60,11 @@ mod tests {
     use super::*;
     use crate::database::Database;
     use crate::where_clause::CmpOperator;
+    use crate::temp_file::TempFile;
 
     #[test]
     fn create_and_drop_table() {
-        let mut database = open_test_database();
+        let (_db_file, mut database) = open_test_database();
         let create_table = Command::CreateTable {
             table_name: SqlValue::Identificator("users".to_string()),
             columns: vec![
@@ -89,7 +90,7 @@ mod tests {
 
     #[test]
     fn drop_non_existing_table() {
-        let mut database = open_test_database();
+        let (_db_file, mut database) = open_test_database();
         let drop_table = Command::DropTable {
             table_name: SqlValue::Identificator("users".to_string()),
         };
@@ -99,7 +100,7 @@ mod tests {
 
     #[test]
     fn insert_and_select_from_table() {
-        let mut database = open_test_database();
+        let (_db_file, mut database) = open_test_database();
         let create_table = Command::CreateTable {
             table_name: SqlValue::Identificator("users".to_string()),
             columns: vec![
@@ -113,7 +114,7 @@ mod tests {
                 }
             ],
         };
-        database.execute(create_table);
+        database.execute(create_table).unwrap();
 
         let insert_into_table = Command::InsertInto {
             table_name: SqlValue::Identificator("users".to_string()),
@@ -133,7 +134,6 @@ mod tests {
             }),
         };
         let select_result = database.execute(select_from_table);
-
         assert!(matches!(select_result, Ok(Some(_))));
 
         let select_rows = select_result.unwrap().unwrap();
@@ -152,7 +152,7 @@ mod tests {
 
     #[test]
     fn insert_and_update_table() {
-        let mut database = open_test_database();
+        let (_db_file, mut database) = open_test_database();
         let create_table = Command::CreateTable {
             table_name: SqlValue::Identificator("users".to_string()),
             columns: vec![
@@ -166,7 +166,7 @@ mod tests {
                 }
             ],
         };
-        database.execute(create_table);
+        database.execute(create_table).unwrap();
 
         let insert_into_table = Command::InsertInto {
             table_name: SqlValue::Identificator("users".to_string()),
@@ -201,7 +201,7 @@ mod tests {
 
     #[test]
     fn insert_delete_and_select_from_table() {
-        let mut database = open_test_database();
+        let (_db_file, mut database) = open_test_database();
         let create_table = Command::CreateTable {
             table_name: SqlValue::Identificator("users".to_string()),
             columns: vec![
@@ -215,7 +215,7 @@ mod tests {
                 }
             ],
         };
-        database.execute(create_table);
+        database.execute(create_table).unwrap();
 
         let insert_into_table = Command::InsertInto {
             table_name: SqlValue::Identificator("users".to_string()),
@@ -249,7 +249,12 @@ mod tests {
         assert_eq!(select_rows.len(), 0);
     }
 
-    fn open_test_database() -> Database {
-        Database::from("./fixtures/database.db").unwrap()
+    fn open_test_database() -> (TempFile, Database) {
+        let db_file = TempFile::new("database.db").unwrap();
+        let temp_dir_path = db_file.temp_dir_path.to_str().unwrap();
+        db_file.writeln_str(temp_dir_path).unwrap();
+        let path = db_file.file_path.clone();
+        // we need to return db_file because it will be dropped and removed otherwise
+        (db_file, Database::from(path.as_path()).unwrap())
     }
 }

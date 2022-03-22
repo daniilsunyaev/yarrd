@@ -1,12 +1,12 @@
 use std::time;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::io::{self, Write};
 use std::env;
 
 pub struct TempFile {
-    temp_dir_path: PathBuf,
-    file_path: PathBuf,
+    pub temp_dir_path: PathBuf,
+    pub file_path: PathBuf,
 }
 
 impl TempFile {
@@ -20,8 +20,8 @@ impl TempFile {
         Ok(TempFile { temp_dir_path, file_path: path })
     }
 
-    pub fn path(&self) -> &str {
-        self.file_path.to_str().unwrap()
+    pub fn path(&self) -> &Path {
+        self.file_path.as_path()
     }
 
     pub fn write_bytes(&self, contents: &[u8]) -> io::Result<()> {
@@ -29,6 +29,14 @@ impl TempFile {
             .write(true)
             .open(self.file_path.to_str().unwrap())?;
         file.write_all(contents)
+    }
+
+    pub fn writeln_str(&self, contents: &str) -> io::Result<()> {
+        let mut file = fs::OpenOptions::new()
+            .write(true)
+            .append(true)
+            .open(self.file_path.to_str().unwrap())?;
+        writeln!(file, "{}", contents)
     }
 
     fn generate_temdir_name() -> String {

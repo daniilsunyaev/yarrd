@@ -1,4 +1,5 @@
 use std::io::{self, Write};
+use std::path::Path;
 
 use crate::command::MetaCommand;
 use crate::database::Database;
@@ -31,7 +32,8 @@ fn main() {
 fn run() -> Result<(), MetaCommandError> {
     let mut buffer = String::new();
     let stdin = io::stdin();
-    let mut database = Database::from("./database.db")?;
+    let path = Path::new("./database.db");
+    let mut database = Database::from(path)?;
 
     loop {
         buffer.clear();
@@ -67,7 +69,7 @@ fn run() -> Result<(), MetaCommandError> {
             },
         }
     };
-    database.close()?;
+    database.close();
     Ok(())
 }
 

@@ -1,10 +1,12 @@
 use std::error::Error;
 use std::fmt;
+use std::io;
 
 use crate::table::ColumnType;
 use crate::lexer::SqlValue;
 use crate::where_clause::CmpOperator;
 use crate::serialize::SerDeError;
+use crate::pager::PagerError;
 
 #[derive(Debug)]
 pub enum ExecutionError {
@@ -17,6 +19,8 @@ pub enum ExecutionError {
     NonEqualityComparisonWithStrings { operator: CmpOperator, lvalue: String, rvalue: String },
     OperatorNotApplicable { operator: CmpOperator, lvalue: SqlValue, rvalue: SqlValue },
     SerDeError(SerDeError),
+    PagerError(PagerError),
+    IoError(io::Error),
 }
 
 impl fmt::Display for ExecutionError {
@@ -40,6 +44,8 @@ impl fmt::Display for ExecutionError {
                 format!("non-equality operator '{}' cannot be applied to strings '{}' and {}, only '=' or '<>' can be used",
                         operator, lvalue, rvalue),
             Self::SerDeError(ser_de_error) => ser_de_error.to_string(),
+            Self::PagerError(pager_error) => pager_error.to_string(),
+            Self::IoError(io_error) => io_error.to_string(),
         };
 
         write!(f, "{}", message)
@@ -49,6 +55,18 @@ impl fmt::Display for ExecutionError {
 impl From<SerDeError> for ExecutionError {
     fn from(error: SerDeError) -> Self {
         Self::SerDeError(error)
+    }
+}
+
+impl From<PagerError> for ExecutionError {
+    fn from(error: PagerError) -> Self {
+        Self::PagerError(error)
+    }
+}
+
+impl From<io::Error> for ExecutionError {
+    fn from(error: io::Error) -> Self {
+        Self::IoError(error)
     }
 }
 

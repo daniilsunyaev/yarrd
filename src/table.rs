@@ -1,13 +1,14 @@
 use std::fmt;
-use std::io::{self, Write, Read};
+use std::path::PathBuf;
 
 use crate::command::{ColumnDefinition, FieldAssignment, SelectColumnName};
 use crate::where_clause::WhereClause;
 use crate::lexer::SqlValue;
 use crate::row::Row;
 use crate::execution_error::ExecutionError;
-use crate::meta_command_error::MetaCommandError;
 use crate::query_result::QueryResult;
+use crate::pager::{Pager, PagerError};
+use crate::where_clause::WhereFilter;
 
 #[derive(Debug, Clone, Copy)]
 pub enum ColumnType {
@@ -49,13 +50,12 @@ pub struct Table {
     pub name: String,
     pub column_types: Vec<ColumnType>,
     pub column_names: Vec<String>,
-    rows: Vec<Row>,
-    free_rows: Vec<usize>, // TODO: this should be stored in database file or in table file
+    pager: Pager,
 }
 
-
 impl Table {
-    pub fn new(name: String, column_definitions: Vec<ColumnDefinition>) -> Table {
+    // TODO: maybe this should be table error or init error?
+    pub fn new(table_filepath: PathBuf, name: &str, column_definitions: Vec<ColumnDefinition>) -> Result<Table, PagerError> {
         let mut column_names = vec![];
         let mut column_types = vec![];
 
@@ -63,40 +63,16 @@ impl Table {
             column_names.push(column_definition.name.to_string());
             column_types.push(column_definition.kind);
         }
+        let row_size = Row::calculate_row_size(&column_types);
+        let pager = Pager::new(table_filepath.as_path(), row_size)?;
 
-        Self { name, column_types, column_names, rows: vec![], free_rows: vec![] }
+        Ok(Self { name: name.to_string(), column_types, column_names, pager })
     }
 
-    pub fn write_rows<W: Write>(&self, mut target: W) -> Result<(), io::Error> {
-        for i in 0..self.rows.len() {
-        //for row in &self.rows {
-            if self.free_rows.contains(&i) { continue }
-
-            let row = &self.rows[i];
-            target.write_all(row.as_bytes())?;
-        }
-        Ok(())
-    }
-
-    pub fn read_rows<R: Read>(&mut self, mut source: R, total_size: u64) -> Result<(), MetaCommandError> {
-        let row_size = Row::calculate_row_size(&self.column_types);
-        if total_size % row_size as u64 != 0 {
-            return Err(MetaCommandError::TableRowSizeDoesNotMatchSource(row_size, total_size));
-        }
-        for _ in 0..(total_size / row_size as u64) {
-            let mut row_data = vec![0u8; row_size];
-            source.read_exact(&mut row_data)?;
-            let row = Row::from_bytes(row_data);//, &self.column_types);
-            self.rows.push(row);
-        }
-
-        Ok(())
-    }
-
-    pub fn select(&self, select_column_names: Vec<SelectColumnName>, where_clause: Option<WhereClause>) -> Result<QueryResult, ExecutionError> {
-        let mut column_names = vec![];
-        let mut column_types = vec![];
-        let mut column_indices = vec![];
+    pub fn select(&mut self, select_column_names: Vec<SelectColumnName>, where_clause: Option<WhereClause>) -> Result<QueryResult, ExecutionError> {
+        let mut result_column_names = vec![];
+        let mut result_column_types = vec![];
+        let mut result_column_indices = vec![];
 
         for select_column_name in &select_column_names {
             match select_column_name {
@@ -106,32 +82,30 @@ impl Table {
                         .ok_or(ExecutionError::ColumnNotExist { column_name: column_name.clone(), table_name: self.name.clone() })?;
                     let column_type = *self.column_types.get(column_index)
                         .ok_or(ExecutionError::ColumnNthNotExist { column_index, table_name: self.name.clone() })?;
-                    column_names.push(column_name);
-                    column_types.push(column_type);
-                    column_indices.push(column_index);
+                    result_column_names.push(column_name);
+                    result_column_types.push(column_type);
+                    result_column_indices.push(column_index);
                 },
                 SelectColumnName::AllColumns => {
-                    column_names.extend_from_slice(&self.column_names[..]);
-                    column_types.extend_from_slice(&self.column_types[..]);
-                    for i in 0..column_types.len() { column_indices.push(i) };
+                    result_column_names.extend_from_slice(&self.column_names[..]);
+                    result_column_types.extend_from_slice(&self.column_types[..]);
+                    for i in 0..self.column_types.len() { result_column_indices.push(i) };
                 }
             }
         }
 
-        let mut result = QueryResult { column_names, column_types, rows: vec![] };
+        // need to clone because of borrow checker
+        let mut result = QueryResult { column_names: result_column_names, column_types: result_column_types.clone(), rows: vec![] };
+        let column_types = self.column_types.clone();
 
-        let matching_rows_indices = self.get_matching_rows_indices(where_clause)?;
-
-        for i in matching_rows_indices {
-            let row = &self.rows[i];
-
-            let mut column_values_data: Vec<u8> = vec![];
+        for row_check in self.matching_rows(where_clause) {
+            let (_row_number, row) = row_check?;
             let result_row = result.spawn_row();
 
-            for column_index in column_indices.iter() {
-                column_values_data.extend_from_slice(row.get_cell_bytes(&self.column_types, *column_index));
+            for (i, column_index) in result_column_indices.iter().enumerate() {
+                let column_values_data = row.get_cell_bytes(&column_types, *column_index);
                 let column_is_null = row.cell_is_null(*column_index);
-                result_row.set_cell_bytes(&self.column_types, *column_index, &column_values_data, column_is_null)?;
+                result_row.set_cell_bytes(&result_column_types, i, &column_values_data, column_is_null)?;
             }
         }
 
@@ -152,13 +126,7 @@ impl Table {
         }
 
         let row = Row::from_sql_values(result_values, &self.column_types)?;
-
-        match self.free_rows.pop() {
-            Some(i) => self.rows[i] = row,
-            None => self.rows.push(row),
-        }
-
-        Ok(())
+        self.pager.insert_row(row).map_err(ExecutionError::PagerError)
     }
 
     pub fn update(&mut self, field_assignments: Vec<FieldAssignment>, where_clause: Option<WhereClause>) -> Result<(), ExecutionError> {
@@ -167,16 +135,21 @@ impl Table {
             .unzip();
 
         let column_indices = self.get_columns_indices(&column_names)?;
+        let column_types = self.column_types.clone(); // need to clone this because of borrow checker
         self.validate_values_type(&column_values, &column_indices)?;
+        let pager_raw: *mut Pager = &mut self.pager;
 
-        let update_rows_indices = self.get_matching_rows_indices(where_clause)?;
-
-        for update_row_index in update_rows_indices {
-            let row = self.rows.get_mut(update_row_index).unwrap();
+        for row_check in self.matching_rows(where_clause) {
+            let (row_number, mut row) = row_check?;
 
             for (column_number, column_value) in column_values.iter().enumerate() {
                 let column_table_number = column_indices[column_number];
-                row.set_cell(&self.column_types, column_table_number, column_value)?;
+                row.set_cell(&column_types, column_table_number, column_value)?;
+            }
+            // pager will not reallocate to a new space during matching_rows iteration
+            // so we can safely dereference raw mut pointer
+            unsafe {
+                (*pager_raw).update_row(row_number, &row)?;
             }
         }
 
@@ -184,24 +157,44 @@ impl Table {
     }
 
     pub fn delete(&mut self, where_clause: Option<WhereClause>) -> Result<(), ExecutionError> {
-        let mut delete_rows_indices = self.get_matching_rows_indices(where_clause)?;
-        self.free_rows.append(&mut delete_rows_indices);
+        let pager_raw: *mut Pager = &mut self.pager;
+        for row_check in self.matching_rows(where_clause) {
+            let (row_number, _row) = row_check?;
+            // pager will not reallocate to a new space during matching_rows iteration
+            // so we can safely dereference raw mut pointer
+            unsafe {
+                (*pager_raw).delete_row(row_number)?;
+            }
+        }
         Ok(())
     }
 
-    fn get_matching_rows_indices(&self, where_clause: Option<WhereClause>) -> Result<Vec<usize>, ExecutionError> {
-        let mut rows_indices = vec![];
-        let row_fits_where_clause = match &where_clause {
-            None => Box::new(|_| Ok(true)),
-            Some(where_clause) => where_clause.build_filter(self),
+    fn matching_rows<'a>(&'a mut self, where_clause: Option<WhereClause>) -> impl Iterator<Item = Result<(u64, Row), ExecutionError>> + 'a {
+        let where_filter = match where_clause {
+            None => WhereFilter::dummy(),
+            Some(where_clause) => where_clause.compile(&self.column_types[..], &self.name, &self.column_names),
         };
 
-        for (i, row) in self.rows.iter().enumerate() {
-            if !row_fits_where_clause(row)? || self.free_rows.contains(&i) { continue };
-            rows_indices.push(i)
-        }
+        Self::seq_scan(&mut self.pager).filter_map(move |(i, row_check)| {
+            match row_check {
+                Ok(row) => {
+                    match where_filter.matches(&row) {
+                        Ok(true) => Some(Ok((i, row))),
+                        Ok(false) => None,
+                        Err(error) => Some(Err(error)),
+                    }
+                },
+                Err(error) => Some(Err(error.into())),
+            }
 
-        Ok(rows_indices)
+        })
+    }
+
+    fn seq_scan<'a>(pager: &'a mut Pager) -> impl Iterator<Item = (u64, Result<Row, PagerError>)> + 'a {
+        let max_rows = pager.max_rows();
+        (0..max_rows).map(|row_number| (row_number, pager.get_row(row_number)))
+            .filter(|(_row_number, row_check)| row_check.is_err() || row_check.as_ref().unwrap().is_some())
+            .map(|(row_number, row_check)| (row_number, row_check.map(|row_opt| row_opt.unwrap())))
     }
 
     fn get_columns_indices(&self, column_names: &[String]) -> Result<Vec<usize>, ExecutionError> {
@@ -230,6 +223,7 @@ impl Table {
     }
 
     // TODO: add hashmap of name -> indices to avoid names scanning
+    // and pass hash ref to compile
     pub fn column_index(&self, column_name: &str) -> Option<usize> {
         self.column_names.iter()
             .position(|table_column_name| table_column_name.eq(column_name))
