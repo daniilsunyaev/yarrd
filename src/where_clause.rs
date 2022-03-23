@@ -1,9 +1,8 @@
-use std::fmt;
-
 use crate::lexer::SqlValue;
 use crate::execution_error::ExecutionError;
 use crate::row::Row;
 use crate::table::ColumnType;
+use crate::cmp_operator::CmpOperator;
 
 #[derive(Debug)]
 pub enum WhereValue {
@@ -41,79 +40,6 @@ impl<'a> WhereFilter<'a> {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub enum CmpOperator {
-    Less,
-    Greater,
-    Equals,
-    NotEquals,
-    LessEquals,
-    GreaterEquals,
-}
-
-impl<'a> fmt::Display for CmpOperator {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Self::Less => write!(f, "<"),
-            Self::Greater => write!(f, ">"),
-            Self::Equals => write!(f, "="),
-            Self::NotEquals => write!(f, "<>"),
-            Self::LessEquals => write!(f, "<="),
-            Self::GreaterEquals => write!(f, ">="),
-        }
-    }
-}
-
-impl CmpOperator {
-    pub fn apply(&self, left: &SqlValue, right: &SqlValue) -> Result<bool, ExecutionError> {
-        match left {
-            SqlValue::Integer(lvalue) => {
-                match right {
-                    SqlValue::Integer(rvalue) => Ok(self.cmp_ord(lvalue, rvalue)),
-                    SqlValue::Null => Ok(false),
-                    _ => Err(ExecutionError::CannotCompareWithNumber(right.clone())),
-                }
-
-            },
-            SqlValue::String(ref lvalue) | SqlValue::Identificator(ref lvalue) => {
-                match self {
-                    Self::Equals | Self::NotEquals => {
-                        match right {
-                            SqlValue::Integer(_rvalue) =>  Err(ExecutionError::CannotCompareWithNumber(left.clone())),
-                            SqlValue::String(ref rvalue) | SqlValue::Identificator(ref rvalue) => self.cmp_eq(lvalue, rvalue),
-                            SqlValue::Null => Ok(false),
-                        }
-                    },
-                    _ => Err(ExecutionError::OperatorNotApplicable { operator: *self, lvalue: left.clone(), rvalue: right.clone() })
-                }
-            },
-            SqlValue::Null => Ok(false)
-        }
-    }
-
-    fn cmp_eq(&self, left: &str, right: &str) -> Result<bool, ExecutionError> {
-        match self {
-            Self::Equals => Ok(left == right),
-            Self::NotEquals => Ok(left != right),
-            _ => Err(ExecutionError::NonEqualityComparisonWithStrings { operator: *self, lvalue: left.to_string(), rvalue: right.to_string() })
-        }
-    }
-
-    fn cmp_ord<Number>(&self, left: Number, right: Number) -> bool
-    where
-        Number: PartialOrd
-    {
-        match self {
-            Self::Less => left < right,
-            Self::Greater => left > right,
-            Self::Equals => left == right,
-            Self::NotEquals => left != right,
-            Self::LessEquals => left <= right,
-            Self::GreaterEquals => left >= right,
-        }
-    }
-}
-
 #[derive(Debug)]
 pub struct WhereClause {
     pub left_value: SqlValue,
@@ -145,7 +71,7 @@ impl WhereClause {
                     None => WhereValue::Value(value),
                     Some(i) => WhereValue::TableColumn(i),
                 }
-            }
+            },
             2 => {
                 if !splitted_identificator[0].eq(table_name) {
                     WhereValue::Value(value)

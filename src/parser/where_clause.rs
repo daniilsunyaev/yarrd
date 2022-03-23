@@ -1,4 +1,5 @@
-use crate::where_clause::{WhereClause, CmpOperator};
+use crate::where_clause::WhereClause;
+use crate::cmp_operator::CmpOperator;
 use crate::lexer::Token;
 use crate::parser::error::ParserError;
 
