@@ -105,7 +105,7 @@ impl Table {
             for (i, column_index) in result_column_indices.iter().enumerate() {
                 let column_values_data = row.get_cell_bytes(&column_types, *column_index);
                 let column_is_null = row.cell_is_null(*column_index);
-                result_row.set_cell_bytes(&result_column_types, i, &column_values_data, column_is_null)?;
+                result_row.set_cell_bytes(&result_column_types, i, column_values_data, column_is_null)?;
             }
         }
 
@@ -169,7 +169,7 @@ impl Table {
         Ok(())
     }
 
-    fn matching_rows<'a>(&'a mut self, where_clause: Option<WhereClause>) -> impl Iterator<Item = Result<(u64, Row), ExecutionError>> + 'a {
+    fn matching_rows(&mut self, where_clause: Option<WhereClause>) -> impl Iterator<Item = Result<(u64, Row), ExecutionError>> + '_ {
         let where_filter = match where_clause {
             None => WhereFilter::dummy(),
             Some(where_clause) => where_clause.compile(&self.column_types[..], &self.name, &self.column_names),
@@ -190,7 +190,7 @@ impl Table {
         })
     }
 
-    fn seq_scan<'a>(pager: &'a mut Pager) -> impl Iterator<Item = (u64, Result<Row, PagerError>)> + 'a {
+    fn seq_scan(pager: &mut Pager) -> impl Iterator<Item = (u64, Result<Row, PagerError>)> + '_ {
         let max_rows = pager.max_rows();
         (0..max_rows).map(|row_number| (row_number, pager.get_row(row_number)))
             .filter(|(_row_number, row_check)| row_check.is_err() || row_check.as_ref().unwrap().is_some())
