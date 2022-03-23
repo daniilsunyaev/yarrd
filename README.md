@@ -42,12 +42,12 @@ General assumptions:
 - ✓ fix null ints not allowed
 - ✓ introduce query result struct instead of Row vec
 - ✓ think of extracting table row to separate class to incapsulate offset operations
-- introduce page alignment (may need to break down)
+- ✓ introduce page alignment (may need to break down)
   - ✓ create simple lru storage
   - ✓ read page from disk, flush page
   - ✓ use pager in table for read/write operations
   - ✓ track max rows to avoid getting deleted rows at the end of last page
-  - add flushed flag to page
+  - ✓ add flushed flag to page
 - think of bitwise version of cmp operator
 - use tempfile dir in command specs
 - extract page to separate file
