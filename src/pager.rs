@@ -48,13 +48,14 @@ struct Page {
     bytes: [u8; PAGE_SIZE],
     row_size: usize,
     free_row_bitmask_size: usize,
+    modified: bool,
 }
 
 impl Page {
     pub fn new(row_size: usize, bytes: [u8; PAGE_SIZE]) -> Page {
         let row_count = Self::calculate_row_count(row_size);
         let free_row_bitmask_size = Self::free_row_bitmask_size(row_count);
-        Self { row_size, free_row_bitmask_size, bytes }
+        Self { row_size, free_row_bitmask_size, bytes, modified: false }
     }
 
     pub fn as_bytes(&self) -> &[u8] {
@@ -71,6 +72,7 @@ impl Page {
 
     pub fn delete_row(&mut self, page_row_number: usize) {
         self.flag_row_presence_status(page_row_number, false);
+        self.modified = true;
     }
 
     pub fn insert_row(&mut self, row: &Row) -> Result<(), PagerError> {
@@ -86,6 +88,7 @@ impl Page {
     pub fn update_row(&mut self, page_row_number: usize, row: &Row) {
         self.mut_row_bytes(page_row_number).copy_from_slice(row.as_bytes());
         self.flag_row_presence_status(page_row_number, true);
+        self.modified = true;
     }
 
     fn flag_row_presence_status(&mut self, page_row_number: usize, new_status: bool) {
@@ -244,6 +247,7 @@ impl Pager {
 
     fn flush(file: &mut File, page_data: Option<(u64, Page)>) -> Result<(), io::Error> {
         if let Some((page_id, page)) = page_data {
+            if !page.modified { return Ok(()) }
             file.seek(SeekFrom::Start(PAGE_SIZE as u64 * page_id))?;
             file.write_all(page.as_bytes())?;
         }
@@ -300,5 +304,21 @@ mod tests {
         assert_eq!(pager.get_row(1).unwrap().unwrap().as_bytes(), [71, 72, 73, 74, 75, 76, 77, 78]);
         assert!(pager.get_row(2).unwrap().is_none());
         assert_eq!(pager.get_row(504).unwrap().unwrap().as_bytes(), [63, 64, 65, 66, 67, 68, 69, 70]);
+    }
+
+    #[test]
+    fn page_flags_modifications() {
+        let table_file = TempFile::new("users.table").unwrap();
+        let contents = vec![0u8; PAGE_SIZE * 2];
+        table_file.write_bytes(&contents).unwrap();
+        let mut pager = Pager::new(table_file.path(), 8).unwrap();
+
+        assert_eq!(pager.get_page(0).unwrap().modified, false);
+        assert_eq!(pager.get_page(505).unwrap().modified, false); // 505th row is on the second page
+
+        pager.delete_row(5).unwrap(); // 5th row is on the 0th page
+
+        assert_eq!(pager.get_page(0).unwrap().modified, true);
+        assert_eq!(pager.get_page(505).unwrap().modified, false);
     }
 }

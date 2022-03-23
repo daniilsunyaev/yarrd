@@ -27,6 +27,9 @@ pub struct LinkedNode<K, V> {
     value: Option<V>,
 }
 
+type VecNodeIter<K, V> = std::vec::IntoIter<LinkedNode<K, V>>;
+type StripNodeFn<K, V> = fn(LinkedNode<K, V>) -> Option<(K, V)>;
+
 #[derive(Debug)]
 pub struct Lru<K, V> {
     key_location: HashMap<K, usize>,
@@ -140,7 +143,7 @@ impl<K: Eq + Hash + Copy, V> Lru<K, V> {
 
 impl<K, V> IntoIterator for Lru<K, V> {
     type Item = Option<(K, V)>;
-    type IntoIter = Map<std::vec::IntoIter<LinkedNode<K, V>>, fn(LinkedNode<K, V>) -> Self::Item>;
+    type IntoIter = Map<VecNodeIter<K, V>, StripNodeFn<K, V>>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.use_sequence.into_iter().map(|node| {

@@ -50,12 +50,7 @@ impl Database {
             .ok_or(MetaCommandError::SchemaDefinitionMissing)?;
         let mut column_definitions = vec![];
 
-        loop {
-            let column_name = match word_iter.next() {
-                Some(column_name) => column_name,
-                None => break,
-            };
-
+        while let Some(column_name) = word_iter.next() {
             let column_type_str = word_iter.next()
                 .ok_or(MetaCommandError::SchemaDefinitionInvalid {
                     table_name: table_name.to_string(),
@@ -78,7 +73,7 @@ impl Database {
                 kind: column_type
             });
         }
-        let table_filepath = Self::table_filepath(&tables_dir, table_name);
+        let table_filepath = Self::table_filepath(tables_dir, table_name);
 
         Ok(Table::new(table_filepath, table_name, column_definitions)?)
     }
@@ -114,7 +109,7 @@ impl Database {
 
     fn create_table(&mut self, table_name: SqlValue, columns: Vec<ColumnDefinition>) -> Result<Option<QueryResult>, ExecutionError> {
         let table_name_string = table_name.to_string();
-        let table_filepath = Self::table_filepath(&self.tables_dir.as_path(), table_name_string.as_str());
+        let table_filepath = Self::table_filepath(self.tables_dir.as_path(), table_name_string.as_str());
 
         if self.tables.contains_key(table_name_string.as_str()) {
             return Err(ExecutionError::TableAlreadyExist(table_name_string));
@@ -134,7 +129,7 @@ impl Database {
         match self.tables.remove(table_name_string.as_str()) {
             None => Err(ExecutionError::TableNotExist(table_name_string)),
             Some(_) => {
-                fs::remove_file(Self::table_filepath(&self.tables_dir.as_path(), table_name_string.as_str()))?;
+                fs::remove_file(Self::table_filepath(self.tables_dir.as_path(), table_name_string.as_str()))?;
                 Ok(None)
             },
         }
