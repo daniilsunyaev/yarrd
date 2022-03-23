@@ -309,14 +309,14 @@ mod tests {
     #[test]
     fn page_flags_modifications() {
         let table_file = TempFile::new("users.table").unwrap();
-        let mut contents = vec![0u8; PAGE_SIZE * 2];
+        let contents = vec![0u8; PAGE_SIZE * 2];
         table_file.write_bytes(&contents).unwrap();
         let mut pager = Pager::new(table_file.path(), 8).unwrap();
 
         assert_eq!(pager.get_page(0).unwrap().modified, false);
         assert_eq!(pager.get_page(505).unwrap().modified, false); // 505th row is on the second page
 
-        pager.delete_row(5); // 5th row is on the 0th page
+        pager.delete_row(5).unwrap(); // 5th row is on the 0th page
 
         assert_eq!(pager.get_page(0).unwrap().modified, true);
         assert_eq!(pager.get_page(505).unwrap().modified, false);
