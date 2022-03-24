@@ -9,6 +9,53 @@ General assumptions:
 - sql-like syntax, no subqueries
 - no external dependencies
 
+### Quickstart
+
+```
+cargo run
+
+yarrd> create table users (id int, name string)
+
+yarrd> insert into users (name, id) values ("john", 3)
+
+yarrd> insert into users (id, name) values (1, NULL)
+
+yarrd> select id from users where name = john
+```
+
+result is:
+
+`Some(QueryResult { column_types: [Integer], column_names: ["id"], rows: [Row { bytes: [254, 3, 0, 0, 0, 0, 0, 0, 0] }] })`
+
+the important part is
+
+`bytes: [254, 3, 0, 0, 0, 0, 0, 0, 0]`
+
+`254` is `11111110`, a null bitmask which means that first column (id) is not null.
+
+`[3, 0, 0, 0, 0, 0, 0, 0]` is actual column bytes. Integers are stored as 8 byte, least
+significant first. So you have your `3` id.
+
+```
+yarrd> select name from users where id = 3
+
+yarrd> Some(QueryResult { column_types: [String], column_names: ["name"], rows: [Row { bytes: [254, 4, 106, 111, 104, 110, 0, 0, ...] }] })
+```
+
+here, we have these bytes:
+
+```
+[254, 4, 106, 111, 104, 110, 0, 0, ...]
+```
+
+`254` is null bitmask,
+
+`4` is the string length,
+
+`106, 111, 104, 110` is `j`, `o`, `h`, `n`.
+
+All strings stored with fixed 256 bytes alignment, that's why there is bunch of zeroes.
+
 ### Checklist
 - ✓ add prompt
 - ✓ add basic lexer
