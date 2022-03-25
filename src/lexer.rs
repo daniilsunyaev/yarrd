@@ -25,6 +25,7 @@ pub enum Token {
     Drop,
     Table,
     Values,
+    Is,
     IntegerType, // TODO: maybe extract types to separate enum
     StringType,
     Value(SqlValue),
@@ -56,6 +57,7 @@ impl fmt::Display for Token {
             Self::Drop => "DROP",
             Self::Table => "TABLE",
             Self::Values => "VALUES",
+            Self::Is => "IS",
             Self::IntegerType => "int",
             Self::StringType => "string",
             Self::Value(sql_value) => return write!(f, "{}", sql_value),
@@ -64,7 +66,6 @@ impl fmt::Display for Token {
         write!(f, "{}", str_token)
     }
 }
-
 
 #[derive(Debug)]
 pub enum LexerError {
@@ -182,6 +183,7 @@ fn parse_token(str_token: &str) -> Token {
         "drop" => Token::Drop,
         "table" => Token::Table,
         "values" => Token::Values,
+        "is" => Token::Is,
         "int" => Token::IntegerType,
         "string" => Token::StringType,
         "NULL" => Token::Value(SqlValue::Null),

@@ -116,7 +116,6 @@ impl Pager {
         }
     }
 
-
     fn get_last_page(&mut self) -> Result<&mut Page, PagerError> {
         let page_id = match self.last_page_id()? {
             None => self.allocate_new_page()?,
