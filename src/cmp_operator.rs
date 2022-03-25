@@ -32,31 +32,33 @@ impl CmpOperator {
     pub fn apply(&self, left: &SqlValue, right: &SqlValue) -> Result<bool, ExecutionError> {
         match self {
             Self::IsNull => Ok(left == &SqlValue::Null),
-            _ => {
-                match left {
-                    SqlValue::Integer(lvalue) => {
-                        match right {
-                            SqlValue::Integer(rvalue) => Ok(self.cmp_ord(lvalue, rvalue)),
-                            SqlValue::Null => Ok(false),
-                            _ => Err(ExecutionError::CannotCompareWithNumber(right.clone())),
-                        }
+            _ => self.apply_cmp(left, right),
+        }
+    }
 
-                    },
-                    SqlValue::String(ref lvalue) | SqlValue::Identificator(ref lvalue) => {
-                        match self {
-                            Self::Equals | Self::NotEquals => {
-                                match right {
-                                    SqlValue::Integer(_rvalue) =>  Err(ExecutionError::CannotCompareWithNumber(left.clone())),
-                                    SqlValue::String(ref rvalue) | SqlValue::Identificator(ref rvalue) => self.cmp_eq(lvalue, rvalue),
-                                    SqlValue::Null => Ok(false),
-                                }
-                            },
-                            _ => Err(ExecutionError::OperatorNotApplicable { operator: *self, lvalue: left.clone(), rvalue: right.clone() })
+    pub fn apply_cmp(&self, left: &SqlValue, right: &SqlValue) -> Result<bool, ExecutionError> {
+        match left {
+            SqlValue::Integer(lvalue) => {
+                match right {
+                    SqlValue::Integer(rvalue) => Ok(self.cmp_ord(lvalue, rvalue)),
+                    SqlValue::Null => Ok(false),
+                    _ => Err(ExecutionError::CannotCompareWithNumber(right.clone())),
+                }
+
+            },
+            SqlValue::String(ref lvalue) | SqlValue::Identificator(ref lvalue) => {
+                match self {
+                    Self::Equals | Self::NotEquals => {
+                        match right {
+                            SqlValue::Integer(_rvalue) =>  Err(ExecutionError::CannotCompareWithNumber(left.clone())),
+                            SqlValue::String(ref rvalue) | SqlValue::Identificator(ref rvalue) => self.cmp_eq(lvalue, rvalue),
+                            SqlValue::Null => Ok(false),
                         }
                     },
-                    SqlValue::Null => Ok(false)
+                    _ => Err(ExecutionError::OperatorNotApplicable { operator: *self, lvalue: left.clone(), rvalue: right.clone() })
                 }
-            }
+            },
+            SqlValue::Null => Ok(false),
         }
     }
 
@@ -79,7 +81,7 @@ impl CmpOperator {
             Self::NotEquals => left != right,
             Self::LessEquals => left <= right,
             Self::GreaterEquals => left >= right,
-            Self::IsNull => false,
+            Self::IsNull => panic!("IS NULL cannot be handled in cmp_ord"),
         }
     }
 }
