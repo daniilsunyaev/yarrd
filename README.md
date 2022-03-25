@@ -95,8 +95,8 @@ All strings stored with fixed 256 bytes alignment, that's why there is bunch of 
   - ✓ use pager in table for read/write operations
   - ✓ track max rows to avoid getting deleted rows at the end of last page
   - ✓ add flushed flag to page
-- use tempfile dir in command specs
-- extract page to separate file
+- ✓ use tempfile dir in command specs
+- ✓ extract page to separate file
 - add is Null check
 - remove result from where closures, cmp should return false in case of undefined, or think of three-valued logic
 - add hard limit to row size
