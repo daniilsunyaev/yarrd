@@ -93,3 +93,37 @@ impl Page {
         PAGE_SIZE * 8 / (row_size * 8 + 1)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn new() {
+        let bytes = [0u8; PAGE_SIZE];
+        let page = Page::new(100, bytes.clone());
+
+        assert_eq!(page.modified, false);
+        assert_eq!(page.as_bytes(), &bytes);
+    }
+
+    #[test]
+    fn delete_row() {
+        let mut bytes = [0u8; PAGE_SIZE];
+        bytes[0] = 255;
+        let mut page = Page::new(100, bytes.clone());
+        page.delete_row(1);
+
+        assert_eq!(page.as_bytes()[0], 0b11111101);
+        assert_eq!(page.modified, true);
+    }
+
+    #[test]
+    fn row_count() {
+        assert_eq!(Page::calculate_row_count(1), 3640);
+        assert_eq!(Page::calculate_row_count(10), 404);
+        assert_eq!(Page::calculate_row_count(50), 81);
+        assert_eq!(Page::calculate_row_count(100), 40);
+        assert_eq!(Page::calculate_row_count(1000), 4);
+    }
+}
