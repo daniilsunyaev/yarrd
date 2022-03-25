@@ -4,7 +4,7 @@ use std::io;
 
 use crate::table::ColumnType;
 use crate::lexer::SqlValue;
-use crate::where_clause::CmpOperator;
+use crate::cmp_operator::CmpOperator;
 use crate::serialize::SerDeError;
 use crate::pager::PagerError;
 

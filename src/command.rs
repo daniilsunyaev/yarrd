@@ -59,7 +59,7 @@ pub enum Command {
 mod tests {
     use super::*;
     use crate::database::Database;
-    use crate::where_clause::CmpOperator;
+    use crate::cmp_operator::CmpOperator;
     use crate::temp_file::TempFile;
 
     #[test]

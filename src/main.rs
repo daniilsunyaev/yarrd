@@ -17,6 +17,7 @@ mod execution_error;
 mod meta_command_error;
 mod serialize;
 mod pager;
+mod cmp_operator;
 
 #[cfg(test)]
 mod temp_file;
