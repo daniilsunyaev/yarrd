@@ -11,6 +11,7 @@ pub enum CmpOperator {
     NotEquals,
     LessEquals,
     GreaterEquals,
+    IsNull,
 }
 
 impl<'a> fmt::Display for CmpOperator {
@@ -22,34 +23,40 @@ impl<'a> fmt::Display for CmpOperator {
             Self::NotEquals => write!(f, "<>"),
             Self::LessEquals => write!(f, "<="),
             Self::GreaterEquals => write!(f, ">="),
+            Self::IsNull => write!(f, "IS NULL"),
         }
     }
 }
 
 impl CmpOperator {
     pub fn apply(&self, left: &SqlValue, right: &SqlValue) -> Result<bool, ExecutionError> {
-        match left {
-            SqlValue::Integer(lvalue) => {
-                match right {
-                    SqlValue::Integer(rvalue) => Ok(self.cmp_ord(lvalue, rvalue)),
-                    SqlValue::Null => Ok(false),
-                    _ => Err(ExecutionError::CannotCompareWithNumber(right.clone())),
-                }
-
-            },
-            SqlValue::String(ref lvalue) | SqlValue::Identificator(ref lvalue) => {
-                match self {
-                    Self::Equals | Self::NotEquals => {
+        match self {
+            Self::IsNull => Ok(left == &SqlValue::Null),
+            _ => {
+                match left {
+                    SqlValue::Integer(lvalue) => {
                         match right {
-                            SqlValue::Integer(_rvalue) =>  Err(ExecutionError::CannotCompareWithNumber(left.clone())),
-                            SqlValue::String(ref rvalue) | SqlValue::Identificator(ref rvalue) => self.cmp_eq(lvalue, rvalue),
+                            SqlValue::Integer(rvalue) => Ok(self.cmp_ord(lvalue, rvalue)),
                             SqlValue::Null => Ok(false),
+                            _ => Err(ExecutionError::CannotCompareWithNumber(right.clone())),
+                        }
+
+                    },
+                    SqlValue::String(ref lvalue) | SqlValue::Identificator(ref lvalue) => {
+                        match self {
+                            Self::Equals | Self::NotEquals => {
+                                match right {
+                                    SqlValue::Integer(_rvalue) =>  Err(ExecutionError::CannotCompareWithNumber(left.clone())),
+                                    SqlValue::String(ref rvalue) | SqlValue::Identificator(ref rvalue) => self.cmp_eq(lvalue, rvalue),
+                                    SqlValue::Null => Ok(false),
+                                }
+                            },
+                            _ => Err(ExecutionError::OperatorNotApplicable { operator: *self, lvalue: left.clone(), rvalue: right.clone() })
                         }
                     },
-                    _ => Err(ExecutionError::OperatorNotApplicable { operator: *self, lvalue: left.clone(), rvalue: right.clone() })
+                    SqlValue::Null => Ok(false)
                 }
-            },
-            SqlValue::Null => Ok(false)
+            }
         }
     }
 
@@ -72,6 +79,7 @@ impl CmpOperator {
             Self::NotEquals => left != right,
             Self::LessEquals => left <= right,
             Self::GreaterEquals => left >= right,
+            Self::IsNull => false,
         }
     }
 }
@@ -91,6 +99,7 @@ mod tests {
         assert_eq!(CmpOperator::NotEquals.apply(&left, &right).unwrap(), true);
         assert_eq!(CmpOperator::GreaterEquals.apply(&left, &right).unwrap(), false);
         assert_eq!(CmpOperator::LessEquals.apply(&left, &right).unwrap(), true);
+        assert_eq!(CmpOperator::IsNull.apply(&left, &right).unwrap(), false);
 
         let left = SqlValue::Integer(2);
         let right = SqlValue::Integer(2);
@@ -101,6 +110,7 @@ mod tests {
         assert_eq!(CmpOperator::NotEquals.apply(&left, &right).unwrap(), false);
         assert_eq!(CmpOperator::LessEquals.apply(&left, &right).unwrap(), true);
         assert_eq!(CmpOperator::GreaterEquals.apply(&left, &right).unwrap(), true);
+        assert_eq!(CmpOperator::IsNull.apply(&left, &right).unwrap(), false);
     }
 
     #[test]
@@ -114,6 +124,8 @@ mod tests {
         assert!(CmpOperator::LessEquals.apply(&left, &right).is_err());
         assert!(CmpOperator::GreaterEquals.apply(&left, &right).is_err());
         assert!(CmpOperator::NotEquals.apply(&left, &right).is_err());
+        assert_eq!(CmpOperator::IsNull.apply(&left, &right).unwrap(), false);
+        assert_eq!(CmpOperator::IsNull.apply(&right, &left).unwrap(), false);
     }
 
     #[test]
@@ -127,5 +139,7 @@ mod tests {
         assert_eq!(CmpOperator::NotEquals.apply(&left, &right).unwrap(), false);
         assert_eq!(CmpOperator::GreaterEquals.apply(&left, &right).unwrap(), false);
         assert_eq!(CmpOperator::LessEquals.apply(&left, &right).unwrap(), false);
+        assert_eq!(CmpOperator::IsNull.apply(&left, &right).unwrap(), false);
+        assert_eq!(CmpOperator::IsNull.apply(&right, &left).unwrap(), true);
     }
 }
