@@ -12,12 +12,14 @@ mod lru;
 mod page;
 
 const PAGE_CACHE_SIZE: usize = 10;
+const MAX_ROW_SIZE: usize = PAGE_SIZE - 1; // wee need at least 1 byte for deleted row flag on the page
 
 #[derive(Debug)]
 pub enum PagerError {
     IoError(io::Error),
     LruError(LruError),
     PageIsFull,
+    RowIsTooBig(usize),
 }
 
 impl fmt::Display for PagerError {
@@ -26,6 +28,8 @@ impl fmt::Display for PagerError {
             Self::IoError(io_error) => write!(f, "{}", io_error),
             Self::LruError(lru_error) => write!(f, "{}", lru_error),
             Self::PageIsFull => write!(f, "cannot append row to page: page is full"),
+            Self::RowIsTooBig(row_size) =>
+                write!(f, "tried to build a row which size is {} bytes, but max row size is {}", row_size, MAX_ROW_SIZE),
         }
     }
 }
@@ -53,6 +57,10 @@ pub struct Pager {
 
 impl Pager {
     pub fn new(table_filepath: &Path, row_size: usize) -> Result<Pager, PagerError> {
+        if row_size > MAX_ROW_SIZE {
+            return Err(PagerError::RowIsTooBig(row_size))
+        }
+
         let table_file = OpenOptions::new()
             .read(true)
             .write(true)
@@ -189,6 +197,12 @@ mod tests {
     fn create_pager_does_not_panic() {
         let table_file = TempFile::new("users.table").unwrap();
         assert!(Pager::new(table_file.path(), 8).is_ok());
+    }
+
+    #[test]
+    fn create_pager_returns_err_for_big_row() {
+        let table_file = TempFile::new("users.table").unwrap();
+        assert!(Pager::new(table_file.path(), 4096).is_err());
     }
 
     #[test]
