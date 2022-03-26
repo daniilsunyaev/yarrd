@@ -116,11 +116,21 @@ impl Database {
         }
 
         File::create(table_filepath.as_path())?;
+        match Table::new(table_filepath.clone(), table_name_string.as_str(), columns) {
+            Ok(table) => {
+                self.tables.insert(table_name_string, table);
+                Ok(None)
+            },
+            Err(create_table_error) => {
+                fs::remove_file(table_filepath.as_path())
+                    .expect(format!(
+                                "failed to create table: {}, failed to remove table file '{}', try to remove it manually",
+                                create_table_error, table_filepath.to_str().unwrap()
+                            ).as_str());
 
-        let table = Table::new(table_filepath, table_name_string.as_str(), columns)?;
-        self.tables.insert(table_name_string, table);
-
-        Ok(None)
+                Err(create_table_error.into())
+            }
+        }
     }
 
     fn drop_table(&mut self, table_name: SqlValue) -> Result<Option<QueryResult>, ExecutionError> {
