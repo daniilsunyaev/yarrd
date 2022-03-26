@@ -98,7 +98,8 @@ All strings stored with fixed 256 bytes alignment, that's why there is bunch of 
 - ✓ use tempfile dir in command specs
 - ✓ extract page to separate file
 - ✓ add is Null check
-- remove result from where closures, cmp should return false in case of undefined, or think of three-valued logic
+- ✓ remove result from where closures, cmp should return false in case of undefined, or think of three-valued logic
+- ✓ refactor cmp_operator a bit
 - add hard limit to row size
 - float values
 - think of bitwise version of cmp operator
@@ -112,6 +113,7 @@ All strings stored with fixed 256 bytes alignment, that's why there is bunch of 
 - add .connect/.close metacommands
 - implement primary constraint (may be just a primary key flag, no general constraints)
 - add row_id
+- introduce NOT
 - store hashtable for primary keys at the beginning of file or store those in root database file
 - maybe use peek and rewrite parser in more of decoupeled manner?
 - add table column names -> column offset hashmap
