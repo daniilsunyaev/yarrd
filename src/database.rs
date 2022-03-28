@@ -124,10 +124,10 @@ impl Database {
             },
             Err(create_table_error) => {
                 fs::remove_file(table_filepath.as_path())
-                    .expect(format!(
+                    .unwrap_or_else(|_| panic!(
                                 "failed to create table: {}, failed to remove table file '{}', try to remove it manually",
                                 create_table_error, table_filepath.to_str().unwrap()
-                            ).as_str());
+                            ));
 
                 Err(create_table_error.into())
             }

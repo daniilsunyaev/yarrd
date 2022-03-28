@@ -30,26 +30,13 @@ impl fmt::Display for ColumnType {
 impl ColumnType {
     pub fn matches_value(&self, value: &SqlValue) -> bool {
         match self {
-            Self::Integer => {
-                match value {
-                    SqlValue::Integer(_) | SqlValue::Null => true,
-                    _ => false,
-                }
-            },
-            Self::Float => {
-                match value {
-                    SqlValue::Float(_) | SqlValue::Null => true,
-                    _ => false,
-                }
-            },
-            Self::String => {
-                match value {
-                    SqlValue::Integer(_) | SqlValue::Float(_) => false,
-                    _ => true,
-                }
-            }
+            Self::Integer => matches!(value,
+                                      SqlValue::Integer(_) | SqlValue::Null),
+            Self::Float => matches!(value,
+                                    SqlValue::Float(_) | SqlValue::Null),
+            Self::String => matches!(value,
+                                     SqlValue::String(_) | SqlValue::Identificator(_) | SqlValue::Null),
         }
-
     }
 }
 
