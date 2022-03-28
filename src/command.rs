@@ -73,6 +73,10 @@ mod tests {
                     kind: ColumnType::Integer,
                 },
                 ColumnDefinition {
+                    name: SqlValue::Identificator("score".to_string()),
+                    kind: ColumnType::Float,
+                },
+                ColumnDefinition {
                     name: SqlValue::String("name full".to_string()),
                     kind: ColumnType::String,
                 },

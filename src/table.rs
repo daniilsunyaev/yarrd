@@ -13,13 +13,15 @@ use crate::where_clause::WhereFilter;
 #[derive(Debug, Clone, Copy)]
 pub enum ColumnType {
     Integer,
-    String
+    Float,
+    String,
 }
 
 impl fmt::Display for ColumnType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::Integer => write!(f, "INT"),
+            Self::Float => write!(f, "FLOAT"),
             Self::String => write!(f, "STRING"),
         }
     }
@@ -28,20 +30,13 @@ impl fmt::Display for ColumnType {
 impl ColumnType {
     pub fn matches_value(&self, value: &SqlValue) -> bool {
         match self {
-            Self::Integer => {
-                match value {
-                    SqlValue::Integer(_) | SqlValue::Null => true,
-                    _ => false,
-                }
-            },
-            Self::String => {
-                match value {
-                    SqlValue::Integer(_) => false,
-                    _ => true,
-                }
-            }
+            Self::Integer => matches!(value,
+                                      SqlValue::Integer(_) | SqlValue::Null),
+            Self::Float => matches!(value,
+                                    SqlValue::Float(_) | SqlValue::Null),
+            Self::String => matches!(value,
+                                     SqlValue::String(_) | SqlValue::Identificator(_) | SqlValue::Null),
         }
-
     }
 }
 

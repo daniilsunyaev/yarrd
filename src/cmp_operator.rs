@@ -39,6 +39,7 @@ impl CmpOperator {
     pub fn apply_cmp(&self, left: &SqlValue, right: &SqlValue) -> Result<bool, ExecutionError> {
         match left {
             SqlValue::Integer(l_int) => self.cmp_int_to_value(*l_int, right),
+            SqlValue::Float(l_float) => self.cmp_float_to_value(*l_float, right),
             SqlValue::String(ref l_string) | SqlValue::Identificator(ref l_string) =>
                 self.cmp_string_to_value(l_string, right),
             SqlValue::Null => Ok(false),
@@ -49,7 +50,15 @@ impl CmpOperator {
         match r_value {
             SqlValue::Integer(r_int) => Ok(self.cmp_ord(l_int, *r_int)),
             SqlValue::Null => Ok(false),
-            _ => Err(ExecutionError::CannotCompareWithNumber(r_value.clone())),
+            _ => Err(ExecutionError::CannotCompareWithInteger(r_value.clone())),
+        }
+    }
+
+    fn cmp_float_to_value(&self, l_float: f64, r_value: &SqlValue) -> Result<bool, ExecutionError> {
+        match r_value {
+            SqlValue::Float(r_float) => Ok(self.cmp_ord(l_float, *r_float)),
+            SqlValue::Null => Ok(false),
+            _ => Err(ExecutionError::CannotCompareWithFloat(r_value.clone())),
         }
     }
 
@@ -57,8 +66,10 @@ impl CmpOperator {
         match self {
             Self::Equals | Self::NotEquals => {
                 match r_value {
-                    SqlValue::Integer(_r_int) =>
-                        Err(ExecutionError::CannotCompareWithNumber(SqlValue::String(l_string.to_string()))),
+                    SqlValue::Integer(_) =>
+                        Err(ExecutionError::CannotCompareWithInteger(SqlValue::String(l_string.to_string()))),
+                    SqlValue::Float(_) =>
+                        Err(ExecutionError::CannotCompareWithFloat(SqlValue::String(l_string.to_string()))),
                     SqlValue::String(ref r_string) | SqlValue::Identificator(ref r_string) => self.cmp_strings(l_string, r_string),
                     SqlValue::Null => Ok(false),
                 }
@@ -112,8 +123,8 @@ mod tests {
         assert_eq!(CmpOperator::LessEquals.apply(&left, &right).unwrap(), true);
         assert_eq!(CmpOperator::IsNull.apply(&left, &right).unwrap(), false);
 
-        let left = SqlValue::Integer(2);
-        let right = SqlValue::Integer(2);
+        let left = SqlValue::Float(2.0);
+        let right = SqlValue::Float(2.0);
 
         assert_eq!(CmpOperator::Less.apply(&left, &right).unwrap(), false);
         assert_eq!(CmpOperator::Greater.apply(&left, &right).unwrap(), false);
@@ -128,6 +139,21 @@ mod tests {
     fn sql_int_to_sql_string() {
         let left = SqlValue::Integer(1);
         let right = SqlValue::String("1".to_string());
+
+        assert!(CmpOperator::Less.apply(&left, &right).is_err());
+        assert!(CmpOperator::Greater.apply(&left, &right).is_err());
+        assert!(CmpOperator::Equals.apply(&left, &right).is_err());
+        assert!(CmpOperator::LessEquals.apply(&left, &right).is_err());
+        assert!(CmpOperator::GreaterEquals.apply(&left, &right).is_err());
+        assert!(CmpOperator::NotEquals.apply(&left, &right).is_err());
+        assert_eq!(CmpOperator::IsNull.apply(&left, &right).unwrap(), false);
+        assert_eq!(CmpOperator::IsNull.apply(&right, &left).unwrap(), false);
+    }
+
+    #[test]
+    fn sql_int_to_float() {
+        let left = SqlValue::Integer(1);
+        let right = SqlValue::Float(1.0);
 
         assert!(CmpOperator::Less.apply(&left, &right).is_err());
         assert!(CmpOperator::Greater.apply(&left, &right).is_err());

@@ -60,6 +60,7 @@ impl Database {
 
             let column_type = match column_type_str {
                 "INT" => ColumnType::Integer,
+                "FLOAT" => ColumnType::Float,
                 "STRING" => ColumnType::String,
                 _ => return Err(MetaCommandError::SchemaDefinitionInvalid {
                     table_name: table_name.to_string(),
@@ -123,10 +124,10 @@ impl Database {
             },
             Err(create_table_error) => {
                 fs::remove_file(table_filepath.as_path())
-                    .expect(format!(
+                    .unwrap_or_else(|_| panic!(
                                 "failed to create table: {}, failed to remove table file '{}', try to remove it manually",
                                 create_table_error, table_filepath.to_str().unwrap()
-                            ).as_str());
+                            ));
 
                 Err(create_table_error.into())
             }

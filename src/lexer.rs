@@ -28,6 +28,7 @@ pub enum Token {
     Is,
     IntegerType, // TODO: maybe extract types to separate enum
     StringType,
+    FloatType,
     Value(SqlValue),
     Unknown(String),
 }
@@ -60,6 +61,7 @@ impl fmt::Display for Token {
             Self::Is => "IS",
             Self::IntegerType => "int",
             Self::StringType => "string",
+            Self::FloatType => "float",
             Self::Value(sql_value) => return write!(f, "{}", sql_value),
             Self::Unknown(string) => return write!(f, "{}", string),
         };
@@ -90,6 +92,7 @@ impl Error for LexerError {}
 pub enum SqlValue {
     String(String),
     Integer(i64),
+    Float(f64),
     Identificator(String),
     Null,
 }
@@ -99,6 +102,7 @@ impl fmt::Display for SqlValue {
         match self {
             Self::String(string) | Self::Identificator(string) => write!(f, "{}", string),
             Self::Integer(integer) => write!(f, "{}", integer),
+            Self::Float(float) => write!(f, "{:e}", float),
             Self::Null => write!(f, "NULL"),
         }
     }
@@ -185,6 +189,7 @@ fn parse_token(str_token: &str) -> Token {
         "values" => Token::Values,
         "is" => Token::Is,
         "int" => Token::IntegerType,
+        "float" => Token::FloatType,
         "string" => Token::StringType,
         "NULL" => Token::Value(SqlValue::Null),
         _ => parse_sql_value(str_token).map(Token::Value)
@@ -193,8 +198,10 @@ fn parse_token(str_token: &str) -> Token {
 }
 
 fn parse_sql_value(str_token: &str) -> Option<SqlValue> {
-    if let Ok(number) = str_token.parse::<i64>() {
-        Some(SqlValue::Integer(number))
+    if let Ok(integer) = str_token.parse::<i64>() {
+        Some(SqlValue::Integer(integer))
+    } else if let Ok(float) = str_token.parse::<f64>() {
+        Some(SqlValue::Float(float))
     } else if str_token.chars().all(|c| c.is_alphanumeric() || c == '_') {
         Some(SqlValue::Identificator(str_token.to_string()))
     } else {
@@ -208,7 +215,7 @@ mod tests {
 
     #[test]
     fn token_parse() {
-        let valid_input = "create table,table_name (row column type int string (,) ";
+        let valid_input = "create table,table_name (row column type int float string (,) ";
         let another_valid_input = "token*from";
         let invalid_input = "create (row \"column, type\" int string\" yy ";
         let another_invalid_input = ";123abc";
@@ -221,7 +228,7 @@ mod tests {
                 Token::Create, Token::Table, Token::Comma, Token::Value(SqlValue::Identificator("table_name".into())),
                 Token::LeftParenthesis, Token::Value(SqlValue::Identificator("row".into())),
                 Token::Value(SqlValue::Identificator("column".into())), Token::Value(SqlValue::Identificator("type".into())),
-                Token::IntegerType, Token::StringType, Token::LeftParenthesis,
+                Token::IntegerType, Token::FloatType, Token::StringType, Token::LeftParenthesis,
                 Token::Comma, Token::RightParenthesis
             ]
         );
@@ -237,7 +244,7 @@ mod tests {
 
     #[test]
     fn token_qoutes_parse() {
-        let valid_input = "create (row \"column, type\" int -421 string\" ; \"";
+        let valid_input = "create (row \"column, type\" int -421 string 43.2552 \" ; \"";
 
         assert!(to_tokens(valid_input).is_ok());
         assert_eq!(
@@ -245,7 +252,8 @@ mod tests {
             vec![
                 Token::Create, Token::LeftParenthesis, Token::Value(SqlValue::Identificator("row".into())),
                 Token::Value(SqlValue::String("column, type".to_string())), Token::IntegerType,
-                Token::Value(SqlValue::Integer(-421)), Token::StringType, Token::Value(SqlValue::String(" ; ".into()))
+                Token::Value(SqlValue::Integer(-421)), Token::StringType,
+                Token::Value(SqlValue::Float(43.2552)), Token::Value(SqlValue::String(" ; ".into()))
             ]
         )
     }

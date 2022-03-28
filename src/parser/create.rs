@@ -50,6 +50,7 @@ where
 
         let kind = match token.next() {
             Some(Token::IntegerType) => ColumnType::Integer,
+            Some(Token::FloatType) => ColumnType::Float,
             Some(Token::StringType) => ColumnType::String,
             Some(token) => return Err(ParserError::ColumnTypeInvalid(token)),
             None => return Err(ParserError::ColumnTypeMissing),
