@@ -12,6 +12,7 @@ pub enum SerDeError {
     CannotReadStringLenError(io::Error),
     CannotReadStringBytesError(io::Error),
     CannotReadIntegerBytesError(io::Error),
+    CannotReadFloatBytesError(io::Error),
     CannotSerializeStringAsInt(String),
     CannotConvertBytesToString(std::str::Utf8Error),
 }
@@ -23,6 +24,7 @@ impl fmt::Display for SerDeError {
             Self::CannotReadStringLenError(_io_error) => "error reading string length from source".to_string(),
             Self::CannotReadStringBytesError(_io_error) => "error reading string bytes from source".to_string(),
             Self::CannotReadIntegerBytesError(_io_error) => "error reading integer bytes from source".to_string(),
+            Self::CannotReadFloatBytesError(_io_error) => "error reading float bytes from source".to_string(),
             Self::CannotSerializeStringAsInt(string) => format!("string '{}' cannot be used as integer value", string),
             Self::CannotConvertBytesToString(_utf8_error) => "cannot convert provided bytes to a utf8 string".to_string(),
         };
@@ -37,6 +39,7 @@ impl Error for SerDeError {
             Self::CannotReadStringLenError(io_error) => Some(io_error),
             Self::CannotReadStringBytesError(io_error) => Some(io_error),
             Self::CannotReadIntegerBytesError(io_error) => Some(io_error),
+            Self::CannotReadFloatBytesError(io_error) => Some(io_error),
             Self::CannotSerializeStringAsInt(_) => None,
             Self::CannotConvertBytesToString(utf8_error) => Some(utf8_error),
         }
@@ -50,8 +53,8 @@ pub fn serialize_into<W: Write>(mut destination: W, column_type: ColumnType, val
             let blob = serialize_string(value);
             destination.write(&blob).map_err(SerDeError::WriteError)?;
         },
-        ColumnType::Integer => {
-            let blob = serialize_int(value)?;
+        ColumnType::Integer | ColumnType::Float => {
+            let blob = serialize_number(value)?;
             destination.write(&blob).map_err(SerDeError::WriteError)?;
         }
     }
@@ -76,13 +79,21 @@ pub fn deserialize<R: Read>(mut source: R, column_type: ColumnType) -> Result<Sq
 
             let int = i64::from_le_bytes(blob);
             Ok(SqlValue::Integer(int))
+        },
+        ColumnType::Float => {
+            let mut blob = [0u8; 8];
+            source.read(&mut blob).map_err(SerDeError::CannotReadFloatBytesError)?;
+
+            let float = f64::from_le_bytes(blob);
+            Ok(SqlValue::Float(float))
         }
     }
 }
 
-fn serialize_int(value: &SqlValue) -> Result<[u8; row::INTEGER_SIZE], SerDeError> {
+fn serialize_number(value: &SqlValue) -> Result<[u8; row::NUMBER_SIZE], SerDeError> {
     match value {
         SqlValue::Integer(int) => Ok(int.to_le_bytes()),
+        SqlValue::Float(float) => Ok(float.to_le_bytes()),
         SqlValue::String(string) | SqlValue::Identificator(string) =>
             Err(SerDeError::CannotSerializeStringAsInt(string.clone())),
         SqlValue::Null => Ok([0; 8]),
@@ -93,6 +104,10 @@ fn serialize_string(value: &SqlValue) -> [u8; row::STRING_SIZE] {
     match value {
         SqlValue::Integer(int) => {
             let string = int.to_string();
+            serialize_native_string(&string)
+        },
+        SqlValue::Float(float) => {
+            let string = float.to_string();
             serialize_native_string(&string)
         },
         SqlValue::String(string) | SqlValue::Identificator(string) => serialize_native_string(string),
@@ -130,6 +145,24 @@ mod tests {
     }
 
     #[test]
+    fn serialize_float() {
+        let mut dest = [0u8; 8];
+        let float = -1.5; // is -0b1.1 or, in big endian 64-bit representation:
+        //   1|0111111 1111|1000 00000000 00000000 00000000 00000000 00000000 00000000
+        //sign|  exponent  |                       fraction
+        //   BF        F8        0        0        0        0        0        0
+        let result = serialize_into(&mut dest[..], ColumnType::Float, &SqlValue::Float(float));
+        assert!(result.is_ok());
+        assert_eq!(dest, [0u8, 0, 0, 0, 0, 0, 0xf8, 0xbf]);
+
+        let mut dest = [0u8; 8];
+        let int = "2".to_string();
+        let result = serialize_into(&mut dest[..], ColumnType::Float, &SqlValue::String(int));
+        assert!(result.is_err());
+        assert_eq!(dest, [0u8; 8]);
+    }
+
+    #[test]
     fn serialize_string() {
         let mut dest = vec![0u8; 256];
         let text = "abc d".to_string();
@@ -150,6 +183,14 @@ mod tests {
         let result = deserialize(&source[..], ColumnType::Integer);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), SqlValue::Integer(3));
+    }
+
+    #[test]
+    fn deserialize_float() {
+        let source = [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x29, 0x40];
+        let result = deserialize(&source[..], ColumnType::Float);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), SqlValue::Float(12.5));
     }
 
     #[test]

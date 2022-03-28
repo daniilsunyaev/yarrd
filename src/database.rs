@@ -60,6 +60,7 @@ impl Database {
 
             let column_type = match column_type_str {
                 "INT" => ColumnType::Integer,
+                "FLOAT" => ColumnType::Float,
                 "STRING" => ColumnType::String,
                 _ => return Err(MetaCommandError::SchemaDefinitionInvalid {
                     table_name: table_name.to_string(),

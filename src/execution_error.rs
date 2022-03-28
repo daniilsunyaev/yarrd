@@ -15,7 +15,8 @@ pub enum ExecutionError {
     ColumnNotExist { table_name: String, column_name: String },
     ColumnNthNotExist { table_name: String, column_index: usize },
     ValueColumnMismatch { value: SqlValue, column_name: String, column_type: ColumnType },
-    CannotCompareWithNumber(SqlValue),
+    CannotCompareWithInteger(SqlValue),
+    CannotCompareWithFloat(SqlValue),
     NonEqualityComparisonWithStrings { operator: CmpOperator, lvalue: String, rvalue: String },
     OperatorNotApplicable { operator: CmpOperator, lvalue: SqlValue, rvalue: SqlValue },
     SerDeError(SerDeError),
@@ -36,7 +37,8 @@ impl fmt::Display for ExecutionError {
                 format!("table '{}' does not have column '{}'", table_name, column_name),
             Self::ColumnNthNotExist { table_name, column_index } =>
                 format!("table '{}' does not have column with index [{}]", table_name, column_index),
-            Self::CannotCompareWithNumber(sql_value) => format!("cannot compare '{}' with number", sql_value),
+            Self::CannotCompareWithInteger(sql_value) => format!("cannot compare '{}' with integer", sql_value),
+            Self::CannotCompareWithFloat(sql_value) => format!("cannot compare '{}' with float", sql_value),
             Self::OperatorNotApplicable { operator, lvalue, rvalue } =>
                 format!("operator '{}' cannot be applied to values '{}' and {}",
                         operator, lvalue, rvalue),

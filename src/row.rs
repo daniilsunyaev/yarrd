@@ -6,8 +6,8 @@ use byte_layout::ByteLayout;
 
 mod byte_layout;
 
-pub const INTEGER_SIZE: usize = 8;
-pub const STRING_SIZE: usize = 256;
+pub const NUMBER_SIZE: usize = 8; // int and float stored in 8 bytes
+pub const STRING_SIZE: usize = 256; // strings are stored in 256 bytes
 
 /// Struct for manipulating with row's bytes, and spawning its interpretation.
 /// Is it simple, so it does not check if provided bytes match column types,
@@ -113,7 +113,8 @@ impl Row {
 
     fn column_size(column_type: ColumnType) -> usize {
         match column_type {
-            ColumnType::Integer => INTEGER_SIZE,
+            ColumnType::Integer => NUMBER_SIZE,
+            ColumnType::Float => NUMBER_SIZE,
             ColumnType::String => STRING_SIZE,
         }
     }
