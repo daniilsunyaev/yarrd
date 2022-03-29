@@ -1,6 +1,5 @@
 use crate::table::ColumnType;
 use crate::serialize::{deserialize, serialize_into, SerDeError};
-use crate::execution_error::ExecutionError;
 use crate::lexer::SqlValue;
 use byte_layout::ByteLayout;
 
@@ -82,13 +81,13 @@ impl Row {
         &self.bytes[offset..(offset + cell_size)]
     }
 
-    pub fn get_cell_sql_value(&self, column_types: &[ColumnType], column_index: usize) -> Result<SqlValue, ExecutionError> {
+    pub fn get_cell_sql_value(&self, column_types: &[ColumnType], column_index: usize) -> Result<SqlValue, SerDeError> {
         if self.cell_is_null(column_index) {
             Ok(SqlValue::Null)
         } else {
             let cell_bytes = self.get_cell_bytes(column_types, column_index);
             let column_type = column_types[column_index];
-            deserialize(cell_bytes, column_type).map_err(|e| e.into())
+            deserialize(cell_bytes, column_type)
         }
     }
 
