@@ -1,7 +1,34 @@
 use std::fmt;
+use std::error::Error;
 
 use crate::lexer::SqlValue;
-use crate::execution_error::ExecutionError;
+
+#[derive(Debug)]
+pub enum CmpError {
+    CannotCompareWithInteger(SqlValue),
+    CannotCompareWithFloat(SqlValue),
+    NonEqualityComparisonWithStrings { operator: CmpOperator, lvalue: String, rvalue: String },
+    OperatorNotApplicable { operator: CmpOperator, lvalue: SqlValue, rvalue: SqlValue },
+}
+
+impl fmt::Display for CmpError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let message = match self {
+            Self::CannotCompareWithInteger(sql_value) => format!("cannot compare '{}' with integer", sql_value),
+            Self::CannotCompareWithFloat(sql_value) => format!("cannot compare '{}' with float", sql_value),
+            Self::OperatorNotApplicable { operator, lvalue, rvalue } =>
+                format!("operator '{}' cannot be applied to values '{}' and {}",
+                        operator, lvalue, rvalue),
+            Self::NonEqualityComparisonWithStrings { operator, lvalue, rvalue } =>
+                format!("non-equality operator '{}' cannot be applied to strings '{}' and {}, only '=' or '<>' can be used",
+                        operator, lvalue, rvalue),
+        };
+
+        write!(f, "{}", message)
+    }
+}
+
+impl Error for CmpError { }
 
 #[derive(Debug, Clone, Copy)]
 pub enum CmpOperator {
@@ -29,14 +56,14 @@ impl<'a> fmt::Display for CmpOperator {
 }
 
 impl CmpOperator {
-    pub fn apply(&self, left: &SqlValue, right: &SqlValue) -> Result<bool, ExecutionError> {
+    pub fn apply(&self, left: &SqlValue, right: &SqlValue) -> Result<bool, CmpError> {
         match self {
             Self::IsNull => Ok(left == &SqlValue::Null),
             _ => self.apply_cmp(left, right),
         }
     }
 
-    pub fn apply_cmp(&self, left: &SqlValue, right: &SqlValue) -> Result<bool, ExecutionError> {
+    pub fn apply_cmp(&self, left: &SqlValue, right: &SqlValue) -> Result<bool, CmpError> {
         match left {
             SqlValue::Integer(l_int) => self.cmp_int_to_value(*l_int, right),
             SqlValue::Float(l_float) => self.cmp_float_to_value(*l_float, right),
@@ -46,35 +73,35 @@ impl CmpOperator {
         }
     }
 
-    fn cmp_int_to_value(&self, l_int: i64, r_value: &SqlValue) -> Result<bool, ExecutionError> {
+    fn cmp_int_to_value(&self, l_int: i64, r_value: &SqlValue) -> Result<bool, CmpError> {
         match r_value {
             SqlValue::Integer(r_int) => Ok(self.cmp_ord(l_int, *r_int)),
             SqlValue::Null => Ok(false),
-            _ => Err(ExecutionError::CannotCompareWithInteger(r_value.clone())),
+            _ => Err(CmpError::CannotCompareWithInteger(r_value.clone())),
         }
     }
 
-    fn cmp_float_to_value(&self, l_float: f64, r_value: &SqlValue) -> Result<bool, ExecutionError> {
+    fn cmp_float_to_value(&self, l_float: f64, r_value: &SqlValue) -> Result<bool, CmpError> {
         match r_value {
             SqlValue::Float(r_float) => Ok(self.cmp_ord(l_float, *r_float)),
             SqlValue::Null => Ok(false),
-            _ => Err(ExecutionError::CannotCompareWithFloat(r_value.clone())),
+            _ => Err(CmpError::CannotCompareWithFloat(r_value.clone())),
         }
     }
 
-    fn cmp_string_to_value(&self, l_string: &str, r_value: &SqlValue) -> Result<bool, ExecutionError> {
+    fn cmp_string_to_value(&self, l_string: &str, r_value: &SqlValue) -> Result<bool, CmpError> {
         match self {
             Self::Equals | Self::NotEquals => {
                 match r_value {
                     SqlValue::Integer(_) =>
-                        Err(ExecutionError::CannotCompareWithInteger(SqlValue::String(l_string.to_string()))),
+                        Err(CmpError::CannotCompareWithInteger(SqlValue::String(l_string.to_string()))),
                     SqlValue::Float(_) =>
-                        Err(ExecutionError::CannotCompareWithFloat(SqlValue::String(l_string.to_string()))),
+                        Err(CmpError::CannotCompareWithFloat(SqlValue::String(l_string.to_string()))),
                     SqlValue::String(ref r_string) | SqlValue::Identificator(ref r_string) => self.cmp_strings(l_string, r_string),
                     SqlValue::Null => Ok(false),
                 }
             },
-            _ => Err(ExecutionError::OperatorNotApplicable {
+            _ => Err(CmpError::OperatorNotApplicable {
                     operator: *self,
                     lvalue: SqlValue::String(l_string.to_string()),
                     rvalue: r_value.clone(),
@@ -82,11 +109,11 @@ impl CmpOperator {
         }
     }
 
-    fn cmp_strings(&self, left: &str, right: &str) -> Result<bool, ExecutionError> {
+    fn cmp_strings(&self, left: &str, right: &str) -> Result<bool, CmpError> {
         match self {
             Self::Equals => Ok(left == right),
             Self::NotEquals => Ok(left != right),
-            _ => Err(ExecutionError::NonEqualityComparisonWithStrings { operator: *self, lvalue: left.to_string(), rvalue: right.to_string() })
+            _ => Err(CmpError::NonEqualityComparisonWithStrings { operator: *self, lvalue: left.to_string(), rvalue: right.to_string() })
         }
     }
 

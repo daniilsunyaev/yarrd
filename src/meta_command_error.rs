@@ -3,7 +3,7 @@ use std::fmt;
 use std::io;
 use std::path::PathBuf;
 
-use crate::pager::{self, PagerError};
+use crate::table::error::TableError;
 
 #[derive(Debug)]
 pub enum MetaCommandError {
@@ -11,7 +11,7 @@ pub enum MetaCommandError {
     DatabaseTablesDirNotExist(PathBuf),
     SchemaDefinitionMissing,
     SchemaDefinitionInvalid { table_name: String, expected: &'static str, actual: String },
-    PagerError(pager::PagerError),
+    TableError(TableError),
 }
 
 impl fmt::Display for MetaCommandError {
@@ -25,7 +25,7 @@ impl fmt::Display for MetaCommandError {
             Self::SchemaDefinitionInvalid { table_name, expected, actual } =>
                 format!("failed to parse schema definition for table '{}', expected {}, got '{}'",
                         table_name, expected, actual),
-            Self::PagerError(pager_error) => pager_error.to_string(),
+            Self::TableError(table_error) => table_error.to_string(),
         };
         write!(f, "{}", message)
     }
@@ -37,9 +37,9 @@ impl From<io::Error> for MetaCommandError {
     }
 }
 
-impl From<PagerError> for MetaCommandError {
-    fn from(error: pager::PagerError) -> Self {
-        Self::PagerError(error)
+impl From<TableError> for MetaCommandError {
+    fn from(error: TableError) -> Self {
+        Self::TableError(error)
     }
 }
 

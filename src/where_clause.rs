@@ -1,5 +1,5 @@
 use crate::lexer::SqlValue;
-use crate::execution_error::ExecutionError;
+use crate::table::error::TableError;
 use crate::row::Row;
 use crate::table::ColumnType;
 use crate::cmp_operator::CmpOperator;
@@ -28,14 +28,19 @@ impl<'a> WhereFilter<'a> {
         }
     }
 
-    pub fn matches(&'a self, row: &'a Row) -> Result<bool, ExecutionError> {
-        self.operator.apply(&self.get_value(&self.left, row)?, &self.get_value(&self.right, row)?)
+    pub fn matches(&'a self, row: &'a Row) -> Result<bool, TableError> {
+        self
+            .operator
+            .apply(&self.get_value(&self.left, row)?, &self.get_value(&self.right, row)?)
+            .map_err(TableError::CmpError)
+
     }
 
-    fn get_value(&'a self, value: &'a WhereValue, row: &'a Row) -> Result<SqlValue, ExecutionError> {
+    fn get_value(&'a self, value: &'a WhereValue, row: &'a Row) -> Result<SqlValue, TableError> {
         match value {
             WhereValue::Value(sql_value) => Ok(sql_value.clone()),
-            WhereValue::TableColumn(index) => row.get_cell_sql_value(self.column_types, *index),
+            WhereValue::TableColumn(index) =>
+                row.get_cell_sql_value(self.column_types, *index).map_err(TableError::CannotGetCell),
         }
     }
 }
