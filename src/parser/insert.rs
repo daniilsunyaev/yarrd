@@ -1,8 +1,8 @@
 use crate::command::Command;
 use crate::lexer::{Token, SqlValue};
 use crate::parser::error::ParserError;
-use crate::parser::shared::
-    {parse_table_name, parse_column_name, parse_left_parenthesis, parse_right_parenthesis};
+use crate::parser::shared::{parse_table_name, parse_column_name, parse_column_value,
+    parse_left_parenthesis, parse_right_parenthesis};
 
 pub fn parse_insert_statement<'a, I>(mut token: I) -> Result<Command, ParserError<'a>>
 where
@@ -62,12 +62,7 @@ where
     parse_left_parenthesis(&mut token, "column values")?;
 
     loop {
-        let value = match token.next() {
-            Some(Token::Value(value)) => value.clone(),
-            Some(token) => return Err(ParserError::ColumnValueInvalid(token)),
-            None => return Err(ParserError::ColumnValueMissing),
-        };
-
+        let value = parse_column_value(&mut token)?;
         values.push(value);
 
         match parse_right_parenthesis(&mut token, "column values")? {

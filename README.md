@@ -105,7 +105,7 @@ All strings stored with fixed 256 bytes alignment, that's why there is bunch of 
 - ✗ think of bitwise version of cmp operator
 - ✓ think of table error or table init error
 - ✓ allow capsed keywords
-- extract table name, column name parsing to a method
+- ✓ extract table name, column name parsing to a method
 - alter table parsing
 - alter table execution
 - implement vacuum metacommand or something like that

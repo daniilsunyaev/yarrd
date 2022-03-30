@@ -23,6 +23,17 @@ where
     }
 }
 
+pub fn parse_column_value<'a, I>(mut token: I) -> Result<SqlValue, ParserError<'a>>
+where
+    I: Iterator<Item = &'a Token>
+{
+    match token.next() {
+        Some(Token::Value(value)) => Ok(value.clone()),
+        Some(token) => Err(ParserError::ColumnValueInvalid(token)),
+        None => Err(ParserError::ColumnValueMissing),
+    }
+}
+
 pub fn parse_left_parenthesis<'a, I>(mut token: I, entity: &'static str) -> Result<(), ParserError<'a>>
 where
     I: Iterator<Item = &'a Token>
