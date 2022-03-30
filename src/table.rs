@@ -185,7 +185,7 @@ impl Table {
                         Err(error) => Some(Err(error)),
                     }
                 },
-                Err(error) => Some(Err(error.into())),
+                Err(error) => Some(Err(error)),
             }
 
         })
