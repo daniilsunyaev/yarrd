@@ -104,7 +104,7 @@ All strings stored with fixed 256 bytes alignment, that's why there is bunch of 
 - ✓ float values
 - ✗ think of bitwise version of cmp operator
 - ✓ think of table error or table init error
-- allow capsed keywords
+- ✓ allow capsed keywords
 - extract table name, column name parsing to a method
 - alter table parsing
 - alter table execution
