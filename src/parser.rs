@@ -196,4 +196,18 @@ mod tests {
 
         assert!(parse_statement(input.iter()).is_ok());
     }
+
+    #[test]
+    fn alter_rename_table_column() {
+        let input = vec![
+                Token::Alter, Token::Table,
+                Token::Value(SqlValue::Identificator("table_name".into())),
+                Token::Rename, Token::Column,
+                Token::Value(SqlValue::Identificator("column_name".into())),
+                Token::To,
+                Token::Value(SqlValue::Identificator("new_column_name".into())),
+           ];
+
+        assert!(parse_statement(input.iter()).is_ok());
+    }
 }

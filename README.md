@@ -108,7 +108,7 @@ All strings stored with fixed 256 bytes alignment, that's why there is bunch of 
 - ✓ extract table name, column name parsing to a method
 - alter table parsing
   - ✓ rename table
-  - rename column
+  - ✓ rename column
   - add column
   - drop column
 - alter table execution
@@ -123,7 +123,7 @@ All strings stored with fixed 256 bytes alignment, that's why there is bunch of 
 - add row_id
 - introduce NOT
 - store hashtable for primary keys at the beginning of file or store those in root database file
-- maybe use peek and rewrite parser in more of decoupeled manner?
+- maybe use peek and rewrite parser in more of decoupeled manner? Try to allow keyword names
 - add table column names -> column offset hashmap
 - add pretty output of queries
 - implement limit

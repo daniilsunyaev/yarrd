@@ -105,7 +105,7 @@ impl Database {
             Command::Update { table_name, field_assignments, where_clause } => self.update_rows(table_name, field_assignments, where_clause),
             Command::Delete { table_name, where_clause } => self.delete_rows(table_name, where_clause),
             Command::Void => Ok(None),
-            _ => Err(ExecutionError::TableNotExist("foo".to_string())), // this is temporary before we write implementation
+            _ => Err(ExecutionError::TableNotExist("foo".to_string())), // TODO: this is temporary before we write implementation
         }
     }
 

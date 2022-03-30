@@ -56,6 +56,11 @@ pub enum Command {
         table_name: SqlValue,
         new_table_name: SqlValue,
     },
+    RenameTableColumn {
+        table_name: SqlValue,
+        column_name: SqlValue,
+        new_column_name: SqlValue,
+    },
     Void,
 }
 

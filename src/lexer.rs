@@ -26,6 +26,7 @@ pub enum Token {
     Alter,
     Rename,
     To,
+    Column,
     Table,
     Values,
     Is,
@@ -62,6 +63,7 @@ impl fmt::Display for Token {
             Self::Alter => "ALTER",
             Self::Rename => "RENAME",
             Self::To => "TO",
+            Self::Column => "COLUMN",
             Self::Table => "TABLE",
             Self::Values => "VALUES",
             Self::Is => "IS",
@@ -194,6 +196,7 @@ fn parse_token(str_token: &str) -> Token {
         "alter" => Token::Alter,
         "rename" => Token::Rename,
         "to" => Token::To,
+        "column" => Token::Column,
         "table" => Token::Table,
         "values" => Token::Values,
         "is" => Token::Is,
@@ -224,7 +227,7 @@ mod tests {
 
     #[test]
     fn token_parse() {
-        let valid_input = "create TABLE,table_name RENAME (row column type int float to string (,) ";
+        let valid_input = "create TABLE,table_name RENAME Column (row columnn type int float to string (,) ";
         let another_valid_input = "token*from alter";
         let invalid_input = "create (row \"column, type\" int string\" yy ";
         let another_invalid_input = ";123abc";
@@ -235,8 +238,8 @@ mod tests {
             to_tokens(valid_input).unwrap(),
             vec![
                 Token::Create, Token::Table, Token::Comma, Token::Value(SqlValue::Identificator("table_name".into())),
-                Token::Rename, Token::LeftParenthesis, Token::Value(SqlValue::Identificator("row".into())),
-                Token::Value(SqlValue::Identificator("column".into())), Token::Value(SqlValue::Identificator("type".into())),
+                Token::Rename, Token::Column, Token::LeftParenthesis, Token::Value(SqlValue::Identificator("row".into())),
+                Token::Value(SqlValue::Identificator("columnn".into())), Token::Value(SqlValue::Identificator("type".into())),
                 Token::IntegerType, Token::FloatType, Token::To, Token::StringType, Token::LeftParenthesis,
                 Token::Comma, Token::RightParenthesis
             ]
