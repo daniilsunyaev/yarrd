@@ -2,17 +2,13 @@ use crate::command::{Command, FieldAssignment};
 use crate::lexer::Token;
 use crate::parser::where_clause::parse_where_clause;
 use crate::parser::error::ParserError;
+use crate::parser::shared::{parse_table_name, parse_column_name, parse_column_value};
 
 pub fn parse_update_statement<'a, I>(mut token: I) -> Result<Command, ParserError<'a>>
 where
     I: Iterator<Item = &'a Token> + std::fmt::Debug,
 {
-    let table_name = match token.next() {
-        Some(Token::Value(name)) => name.clone(),
-        Some(token) => return Err(ParserError::TableNameInvalid(token)),
-        None => return Err(ParserError::TableNameMissing),
-    };
-
+    let table_name = parse_table_name(&mut token)?;
     let (field_assignments, where_provided) = parse_field_assignments(&mut token)?;
 
     let where_clause = if where_provided {
@@ -37,11 +33,7 @@ where
     }
 
     let where_provided = loop {
-        let column_name = match token.next() {
-            Some(Token::Value(name)) => name.to_string(),
-            Some(token) => return Err(ParserError::ColumnNameInvalid(token)),
-            None => return Err(ParserError::ColumnNameMissing),
-        };
+        let column_name = parse_column_name(&mut token)?.to_string();
 
         match token.next() {
             Some(Token::Equals) => { },
@@ -49,12 +41,7 @@ where
             None => return Err(ParserError::EqualsMissing)
         }
 
-        let value = match token.next() {
-            Some(Token::Value(value)) => value.clone(),
-            Some(token) => return Err(ParserError::ColumnValueInvalid(token)),
-            None => return Err(ParserError::ColumnValueMissing),
-        };
-
+        let value = parse_column_value(&mut token)?;
         field_assignments.push(FieldAssignment { column_name, value });
 
         match token.next() {

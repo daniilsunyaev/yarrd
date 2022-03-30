@@ -1,6 +1,8 @@
 use crate::command::Command;
 use crate::lexer::{Token, SqlValue};
 use crate::parser::error::ParserError;
+use crate::parser::shared::{parse_table_name, parse_column_name, parse_column_value,
+    parse_left_parenthesis, parse_right_parenthesis};
 
 pub fn parse_insert_statement<'a, I>(mut token: I) -> Result<Command, ParserError<'a>>
 where
@@ -17,14 +19,7 @@ fn parse_insert_into<'a, I>(mut token: I) -> Result<Command, ParserError<'a>>
 where
     I: Iterator<Item = &'a Token> + std::fmt::Debug,
 {
-
-
-    let table_name = match token.next() {
-        Some(Token::Value(name)) => name.clone(),
-        Some(token) => return Err(ParserError::TableNameInvalid(token)),
-        None => return Err(ParserError::TableNameMissing),
-    };
-
+    let table_name = parse_table_name(&mut token)?;
     let column_names = parse_column_names(&mut token)?;
     let values = parse_values_expression(&mut token)?;
 
@@ -37,26 +32,15 @@ where
 {
     let mut columns = vec![];
 
-    match token.next() {
-        Some(Token::LeftParenthesis) => { },
-        Some(token) => return Err(ParserError::LeftParenthesisExpected(token, "column names")),
-        None => return Err(ParserError::LeftParenthesisMissing("column names")),
-    }
+    parse_left_parenthesis(&mut token, "column names")?;
 
     loop {
-        let name = match token.next() {
-            Some(Token::Value(name)) => name.clone(),
-            Some(token) => return Err(ParserError::ColumnNameInvalid(token)),
-            None => return Err(ParserError::ColumnNameMissing),
-        };
-
+        let name = parse_column_name(&mut token)?;
         columns.push(name);
 
-        match token.next() {
-            Some(Token::RightParenthesis) => break,
-            Some(Token::Comma) => { },
-            Some(token) => return Err(ParserError::RightParenthesisExpected(token, "column names")),
-            None => return Err(ParserError::RightParenthesisMissing("column names")),
+        match parse_right_parenthesis(&mut token, "column names")? {
+            true => break,
+            false => { },
         };
     }
 
@@ -75,26 +59,15 @@ where
         None => return Err(ParserError::InsertValuesMissing),
     }
 
-    match token.next() {
-        Some(Token::LeftParenthesis) => { },
-        Some(token) => return Err(ParserError::LeftParenthesisExpected(token, "column values")),
-        None => return Err(ParserError::LeftParenthesisMissing("column values")),
-    }
+    parse_left_parenthesis(&mut token, "column values")?;
 
     loop {
-        let value = match token.next() {
-            Some(Token::Value(value)) => value.clone(),
-            Some(token) => return Err(ParserError::ColumnValueInvalid(token)),
-            None => return Err(ParserError::ColumnValueMissing),
-        };
-
+        let value = parse_column_value(&mut token)?;
         values.push(value);
 
-        match token.next() {
-            Some(Token::RightParenthesis) => break,
-            Some(Token::Comma) => { },
-            Some(token) => return Err(ParserError::RightParenthesisExpected(token, "column values")),
-            None => return Err(ParserError::RightParenthesisMissing("column values")),
+        match parse_right_parenthesis(&mut token, "column values")? {
+            true => break,
+            false => { },
         };
     }
 

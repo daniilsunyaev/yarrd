@@ -2,18 +2,14 @@ use crate::command::{Command, SelectColumnName};
 use crate::lexer::Token;
 use crate::parser::where_clause::parse_where_clause;
 use crate::parser::error::ParserError;
+use crate::parser::shared::parse_table_name;
 
 pub fn parse_select_statement<'a, I>(mut token: I) -> Result<Command, ParserError<'a>>
 where
     I: Iterator<Item = &'a Token> + std::fmt::Debug,
 {
     let column_names = parse_column_names(&mut token)?;
-
-    let table_name = match token.next() {
-        Some(Token::Value(name)) => name.clone(),
-        Some(token) => return Err(ParserError::TableNameInvalid(token)),
-        None => return Err(ParserError::TableNameMissing),
-    };
+    let table_name = parse_table_name(&mut token)?;
 
     match token.next() {
         Some(Token::Where) => {
