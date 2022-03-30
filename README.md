@@ -107,7 +107,7 @@ All strings stored with fixed 256 bytes alignment, that's why there is bunch of 
 - ✓ allow capsed keywords
 - ✓ extract table name, column name parsing to a method
 - alter table parsing
-  - rename table
+  - ✓ rename table
   - rename column
   - add column
   - drop column

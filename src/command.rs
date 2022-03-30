@@ -52,6 +52,10 @@ pub enum Command {
     DropTable {
         table_name: SqlValue,
     },
+    RenameTable {
+        table_name: SqlValue,
+        new_table_name: SqlValue,
+    },
     Void,
 }
 
