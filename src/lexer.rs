@@ -23,6 +23,7 @@ pub enum Token {
     Delete,
     Create,
     Drop,
+    Alter,
     Table,
     Values,
     Is,
@@ -56,6 +57,7 @@ impl fmt::Display for Token {
             Self::Delete => "DELETE",
             Self::Create => "CREATE",
             Self::Drop => "DROP",
+            Self::Alter => "ALTER",
             Self::Table => "TABLE",
             Self::Values => "VALUES",
             Self::Is => "IS",
@@ -185,6 +187,7 @@ fn parse_token(str_token: &str) -> Token {
         "delete" => Token::Delete,
         "create" => Token::Create,
         "drop" => Token::Drop,
+        "alter" => Token::Alter,
         "table" => Token::Table,
         "values" => Token::Values,
         "is" => Token::Is,
@@ -216,7 +219,7 @@ mod tests {
     #[test]
     fn token_parse() {
         let valid_input = "create TABLE,table_name (row column type int float string (,) ";
-        let another_valid_input = "token*from";
+        let another_valid_input = "token*from alter";
         let invalid_input = "create (row \"column, type\" int string\" yy ";
         let another_invalid_input = ";123abc";
 
@@ -233,7 +236,7 @@ mod tests {
             ]
         );
         assert_eq!(to_tokens(another_valid_input).unwrap(),
-            vec![Token::Value(SqlValue::Identificator("token".to_string())), Token::AllColumns, Token::From]);
+            vec![Token::Value(SqlValue::Identificator("token".to_string())), Token::AllColumns, Token::From, Token::Alter]);
 
         assert!(matches!(to_tokens(invalid_input), Err(LexerError::IncompleteString)));
         assert!(matches!(

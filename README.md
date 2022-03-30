@@ -107,7 +107,15 @@ All strings stored with fixed 256 bytes alignment, that's why there is bunch of 
 - ✓ allow capsed keywords
 - ✓ extract table name, column name parsing to a method
 - alter table parsing
+  - rename table
+  - rename column
+  - add column
+  - drop column
 - alter table execution
+  - rename table
+  - rename column
+  - add column
+  - drop column
 - implement vacuum metacommand or something like that
 - add .create/.drop metacommand
 - add .connect/.close metacommands
