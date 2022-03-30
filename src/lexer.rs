@@ -1,7 +1,7 @@
 use std::error::Error;
 use std::fmt;
 
-#[derive(Debug, PartialEq)] // TODO: impl display to display in error messages
+#[derive(Debug, PartialEq)]
 pub enum Token {
     LeftParenthesis,
     RightParenthesis,
@@ -88,7 +88,7 @@ impl fmt::Display for LexerError {
 
 impl Error for LexerError {}
 
-#[derive(Debug, PartialEq, Clone)] // TODO: display instead of debug in error messages
+#[derive(Debug, PartialEq, Clone)]
 pub enum SqlValue {
     String(String),
     Integer(i64),
@@ -164,7 +164,7 @@ fn parse_token(str_token: &str) -> Token {
         return Token::Value(SqlValue::String(str_token[1..str_token.len()-1].to_string()))
     };
 
-    match str_token {
+    match str_token.to_lowercase().as_str() {
         "=" => Token::Equals,
         "<>" => Token::NotEquals,
         ">" => Token::Greater,
@@ -191,7 +191,7 @@ fn parse_token(str_token: &str) -> Token {
         "int" => Token::IntegerType,
         "float" => Token::FloatType,
         "string" => Token::StringType,
-        "NULL" => Token::Value(SqlValue::Null),
+        "null" => Token::Value(SqlValue::Null),
         _ => parse_sql_value(str_token).map(Token::Value)
             .unwrap_or_else(|| Token::Unknown(str_token.to_string())),
     }
@@ -215,7 +215,7 @@ mod tests {
 
     #[test]
     fn token_parse() {
-        let valid_input = "create table,table_name (row column type int float string (,) ";
+        let valid_input = "create TABLE,table_name (row column type int float string (,) ";
         let another_valid_input = "token*from";
         let invalid_input = "create (row \"column, type\" int string\" yy ";
         let another_invalid_input = ";123abc";
@@ -244,15 +244,15 @@ mod tests {
 
     #[test]
     fn token_qoutes_parse() {
-        let valid_input = "create (row \"column, type\" int -421 string 43.2552 \" ; \"";
+        let valid_input = "CrEAte (row NULL \"column, type\" int -421 string 43.2552 \" ; \"";
 
         assert!(to_tokens(valid_input).is_ok());
         assert_eq!(
             to_tokens(valid_input).unwrap(),
             vec![
                 Token::Create, Token::LeftParenthesis, Token::Value(SqlValue::Identificator("row".into())),
-                Token::Value(SqlValue::String("column, type".to_string())), Token::IntegerType,
-                Token::Value(SqlValue::Integer(-421)), Token::StringType,
+                Token::Value(SqlValue::Null), Token::Value(SqlValue::String("column, type".to_string())),
+                Token::IntegerType, Token::Value(SqlValue::Integer(-421)), Token::StringType,
                 Token::Value(SqlValue::Float(43.2552)), Token::Value(SqlValue::String(" ; ".into()))
             ]
         )
