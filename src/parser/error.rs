@@ -12,6 +12,12 @@ pub enum ParserError<'a> {
     CreateTypeUnknown(&'a Token),
     DropTypeMissing,
     DropTypeUnknown(&'a Token),
+    AlterTypeMissing,
+    AlterTypeUnknown(&'a Token),
+    AlterTableActionMissing,
+    AlterTableActionUnknown(&'a Token),
+    RenameTypeMissing,
+    RenameTypeUnknown(&'a Token),
     InsertInvalid(&'a Token),
     IntoMissing,
     TableNameInvalid(&'a Token),
@@ -61,6 +67,15 @@ impl<'a> fmt::Display for ParserError<'a> {
             Self::DropTypeMissing => "DROP type is not provided".to_string(),
             Self::DropTypeUnknown(drop_type) =>
                 format!("unknown DROP type '{}', consider using DROP TABLE", drop_type),
+            Self::AlterTypeMissing => "ALTER type is not provided".to_string(),
+            Self::AlterTypeUnknown(alter_type) =>
+                format!("unknown ALTER type '{}', consider using ALTER TABLE", alter_type),
+            Self::AlterTableActionMissing => "ALTER TABLE action is not provided".to_string(),
+            Self::AlterTableActionUnknown(action_type) =>
+                format!("unknown ALTER TABLE action '{}', consider using ALTER TABLE <table_name> RENAME TO", action_type),
+            Self::RenameTypeMissing => "RENAME type is not provided".to_string(),
+            Self::RenameTypeUnknown(create_type) =>
+                format!("unknown RENAME type '{}', consider using RENAME TO", create_type),
             Self::InsertInvalid(token) => format!("expected INSERT INTO, got INSERT {}", token),
             Self::IntoMissing => "expected INSERT INTO, got INSERT".to_string(),
             Self::TableNameInvalid(table_name) => format!("'{}' is not a valid table name", table_name),

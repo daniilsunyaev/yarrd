@@ -7,6 +7,7 @@ use insert::parse_insert_statement;
 use update::parse_update_statement;
 use select::parse_select_statement;
 use delete::parse_delete_statement;
+use alter::parse_alter_statement;
 
 mod create;
 mod drop;
@@ -15,6 +16,7 @@ mod select;
 mod where_clause;
 mod update;
 mod delete;
+mod alter;
 mod error;
 mod shared;
 
@@ -29,6 +31,7 @@ where
         Some(Token::Select) => parse_select_statement(&mut token)?,
         Some(Token::Update) => parse_update_statement(&mut token)?,
         Some(Token::Delete) => parse_delete_statement(&mut token)?,
+        Some(Token::Alter) => parse_alter_statement(&mut token)?,
         Some(command) => return Err(ParserError::UnknownCommand(command)),
         _ => return Ok(Command::Void),
     };
@@ -177,6 +180,32 @@ mod tests {
                 Token::Value(SqlValue::Identificator("table_name".into())),
                 Token::Where, Token::Value(SqlValue::String("id".into())), Token::Equals,
                 Token::Value(SqlValue::Integer(10))
+           ];
+
+        assert!(parse_statement(input.iter()).is_ok());
+    }
+
+    #[test]
+    fn alter_rename_table() {
+        let input = vec![
+                Token::Alter, Token::Table,
+                Token::Value(SqlValue::Identificator("table_name".into())),
+                Token::Rename, Token::To,
+                Token::Value(SqlValue::Identificator("new_table_name".into())),
+           ];
+
+        assert!(parse_statement(input.iter()).is_ok());
+    }
+
+    #[test]
+    fn alter_rename_table_column() {
+        let input = vec![
+                Token::Alter, Token::Table,
+                Token::Value(SqlValue::Identificator("table_name".into())),
+                Token::Rename, Token::Column,
+                Token::Value(SqlValue::Identificator("column_name".into())),
+                Token::To,
+                Token::Value(SqlValue::Identificator("new_column_name".into())),
            ];
 
         assert!(parse_statement(input.iter()).is_ok());
