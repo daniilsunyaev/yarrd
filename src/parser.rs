@@ -16,6 +16,7 @@ mod where_clause;
 mod update;
 mod delete;
 mod error;
+mod shared;
 
 pub fn parse_statement<'a, I>(mut token: I) -> Result<Command, ParserError<'a>>
 where

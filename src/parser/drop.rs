@@ -1,7 +1,7 @@
 use crate::command::Command;
 use crate::lexer::Token;
-use crate::lexer::SqlValue;
 use crate::parser::ParserError;
+use crate::parser::shared::parse_table_name;
 
 pub fn parse_drop_statement<'a, I>(mut token: I) -> Result<Command, ParserError<'a>>
 where
@@ -18,12 +18,6 @@ fn parse_drop_table_clause<'a, I>(mut token: I) -> Result<Command, ParserError<'
 where
     I: Iterator<Item = &'a Token> + std::fmt::Debug,
 {
-
-    let table_name: SqlValue = match token.next() {
-        Some(Token::Value(name)) => name.clone(),
-        Some(token) => return Err(ParserError::TableNameInvalid(token)),
-        None => return Err(ParserError::TableNameMissing),
-    };
-
+    let table_name = parse_table_name(&mut token)?;
     Ok(Command::DropTable { table_name })
 }

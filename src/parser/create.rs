@@ -2,6 +2,7 @@ use crate::command::{Command, ColumnDefinition};
 use crate::table::ColumnType;
 use crate::lexer::Token;
 use crate::parser::error::ParserError;
+use crate::parser::shared::parse_table_name;
 
 pub fn parse_create_statement<'a, I>(mut token: I) -> Result<Command, ParserError<'a>>
 where
@@ -19,13 +20,8 @@ where
     I: Iterator<Item = &'a Token> + std::fmt::Debug,
 {
 
-    let table_name = match token.next() {
-        Some(Token::Value(name)) => name.clone(),
-        Some(token) => return Err(ParserError::TableNameInvalid(token)),
-        None => return Err(ParserError::TableNameMissing),
-    };
-
-    let column_definitions = parse_column_definitions(token)?;
+    let table_name = parse_table_name(&mut token)?;
+    let column_definitions = parse_column_definitions(&mut token)?;
     Ok(Command::CreateTable { table_name, columns: column_definitions })
 }
 

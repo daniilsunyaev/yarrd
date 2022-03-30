@@ -1,6 +1,7 @@
 use crate::command::Command;
 use crate::lexer::{Token, SqlValue};
 use crate::parser::error::ParserError;
+use crate::parser::shared::parse_table_name;
 
 pub fn parse_insert_statement<'a, I>(mut token: I) -> Result<Command, ParserError<'a>>
 where
@@ -17,14 +18,7 @@ fn parse_insert_into<'a, I>(mut token: I) -> Result<Command, ParserError<'a>>
 where
     I: Iterator<Item = &'a Token> + std::fmt::Debug,
 {
-
-
-    let table_name = match token.next() {
-        Some(Token::Value(name)) => name.clone(),
-        Some(token) => return Err(ParserError::TableNameInvalid(token)),
-        None => return Err(ParserError::TableNameMissing),
-    };
-
+    let table_name = parse_table_name(&mut token)?;
     let column_names = parse_column_names(&mut token)?;
     let values = parse_values_expression(&mut token)?;
 
