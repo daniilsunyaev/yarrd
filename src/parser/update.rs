@@ -2,7 +2,7 @@ use crate::command::{Command, FieldAssignment};
 use crate::lexer::Token;
 use crate::parser::where_clause::parse_where_clause;
 use crate::parser::error::ParserError;
-use crate::parser::shared::parse_table_name;
+use crate::parser::shared::{parse_table_name, parse_column_name};
 
 pub fn parse_update_statement<'a, I>(mut token: I) -> Result<Command, ParserError<'a>>
 where
@@ -33,11 +33,7 @@ where
     }
 
     let where_provided = loop {
-        let column_name = match token.next() {
-            Some(Token::Value(name)) => name.to_string(),
-            Some(token) => return Err(ParserError::ColumnNameInvalid(token)),
-            None => return Err(ParserError::ColumnNameMissing),
-        };
+        let column_name = parse_column_name(&mut token)?.to_string();
 
         match token.next() {
             Some(Token::Equals) => { },

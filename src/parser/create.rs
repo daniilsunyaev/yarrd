@@ -2,7 +2,8 @@ use crate::command::{Command, ColumnDefinition};
 use crate::table::ColumnType;
 use crate::lexer::Token;
 use crate::parser::error::ParserError;
-use crate::parser::shared::parse_table_name;
+use crate::parser::shared::
+    {parse_table_name, parse_column_name, parse_left_parenthesis, parse_right_parenthesis};
 
 pub fn parse_create_statement<'a, I>(mut token: I) -> Result<Command, ParserError<'a>>
 where
@@ -19,7 +20,6 @@ fn parse_create_table_statement<'a, I>(mut token: I) -> Result<Command, ParserEr
 where
     I: Iterator<Item = &'a Token> + std::fmt::Debug,
 {
-
     let table_name = parse_table_name(&mut token)?;
     let column_definitions = parse_column_definitions(&mut token)?;
     Ok(Command::CreateTable { table_name, columns: column_definitions })
@@ -30,19 +30,10 @@ where
     I: Iterator<Item = &'a Token> + std::fmt::Debug,
 {
     let mut columns = vec![];
-
-    match token.next() {
-        Some(Token::LeftParenthesis) => { },
-        Some(token) => return Err(ParserError::LeftParenthesisExpected(token, "column definitions")),
-        None => return Err(ParserError::LeftParenthesisMissing("column definitions")),
-    }
+    parse_left_parenthesis(&mut token, "column definitions")?;
 
     loop {
-        let name = match token.next() {
-            Some(Token::Value(name)) => name.clone(),
-            Some(token) => return Err(ParserError::ColumnNameInvalid(token)),
-            None => return Err(ParserError::ColumnNameMissing),
-        };
+        let name = parse_column_name(&mut token)?;
 
         let kind = match token.next() {
             Some(Token::IntegerType) => ColumnType::Integer,
@@ -54,11 +45,9 @@ where
 
         columns.push(ColumnDefinition { name, kind } );
 
-        match token.next() {
-            Some(Token::RightParenthesis) => break,
-            Some(Token::Comma) => { },
-            Some(token) => return Err(ParserError::RightParenthesisExpected(token, "column definitions")),
-            None => return Err(ParserError::RightParenthesisMissing("column definitions")),
+        match parse_right_parenthesis(&mut token, "column definitions")? {
+            true => break,
+            false => { },
         };
     }
 
