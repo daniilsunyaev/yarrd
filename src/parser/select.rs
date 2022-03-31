@@ -6,7 +6,7 @@ use crate::parser::shared::parse_table_name;
 
 pub fn parse_select_statement<'a, I>(mut token: I) -> Result<Command, ParserError<'a>>
 where
-    I: Iterator<Item = &'a Token> + std::fmt::Debug,
+    I: Iterator<Item = &'a Token>
 {
     let column_names = parse_column_names(&mut token)?;
     let table_name = parse_table_name(&mut token)?;
@@ -23,7 +23,7 @@ where
 
 fn parse_column_names<'a, I>(mut token: I) -> Result<Vec<SelectColumnName>, ParserError<'a>>
 where
-    I: Iterator<Item = &'a Token> + std::fmt::Debug,
+    I: Iterator<Item = &'a Token>
 {
     let mut columns = vec![];
 

@@ -6,7 +6,7 @@ use crate::lexer::SqlValue;
 
 pub fn parse_where_clause<'a, I>(mut token: I) -> Result<WhereClause, ParserError<'a>>
 where
-    I: Iterator<Item = &'a Token> + std::fmt::Debug,
+    I: Iterator<Item = &'a Token>
 {
     let left_value = match token.next() {
         Some(Token::Value(sql_value)) => sql_value.clone(),

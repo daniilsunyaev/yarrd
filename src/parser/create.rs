@@ -6,7 +6,7 @@ use crate::parser::shared::
 
 pub fn parse_create_statement<'a, I>(mut token: I) -> Result<Command, ParserError<'a>>
 where
-    I: Iterator<Item = &'a Token> + std::fmt::Debug,
+    I: Iterator<Item = &'a Token>
 {
     match token.next() {
         Some(Token::Table) => parse_create_table_statement(token),
@@ -17,7 +17,7 @@ where
 
 fn parse_create_table_statement<'a, I>(mut token: I) -> Result<Command, ParserError<'a>>
 where
-    I: Iterator<Item = &'a Token> + std::fmt::Debug,
+    I: Iterator<Item = &'a Token>
 {
     let table_name = parse_table_name(&mut token)?;
     let column_definitions = parse_column_definitions(&mut token)?;
