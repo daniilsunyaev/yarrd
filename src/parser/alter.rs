@@ -30,6 +30,7 @@ where
             }
         },
         Some(Token::Add) => parse_add_column(token, table_name),
+        Some(Token::Drop) => parse_drop_entity(token, table_name),
         None => Err(ParserError::AlterTableActionMissing),
         Some(token) => Err(ParserError::AlterTableActionUnknown(token)),
     }
@@ -69,4 +70,18 @@ where
     let column_definition = parse_column_definition(&mut token)?;
 
     Ok(Command::AddTableColumn { table_name, column_definition })
+}
+
+fn parse_drop_entity<'a, I>(mut token: I, table_name: SqlValue) -> Result<Command, ParserError<'a>>
+where
+    I: Iterator<Item = &'a Token>
+{
+    match token.next() {
+        Some(Token::Column) => {
+            let column_name = parse_column_name(token)?;
+            Ok(Command::DropTableColumn { table_name, column_name })
+        },
+        None => Err(ParserError::DropTypeMissing),
+        Some(token) => Err(ParserError::DropTypeUnknown(token, "COLUMN")),
+    }
 }

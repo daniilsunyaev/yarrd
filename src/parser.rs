@@ -222,4 +222,16 @@ mod tests {
 
         assert!(parse_statement(input.iter()).is_ok());
     }
+
+    #[test]
+    fn alter_table_drop_column() {
+        let input = vec![
+                Token::Alter, Token::Table,
+                Token::Value(SqlValue::Identificator("table_name".into())),
+                Token::Drop, Token::Column,
+                Token::Value(SqlValue::Identificator("column_name".into())),
+           ];
+
+        assert!(parse_statement(input.iter()).is_ok());
+    }
 }

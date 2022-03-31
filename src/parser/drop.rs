@@ -10,7 +10,7 @@ where
     match token.next() {
         Some(Token::Table) => parse_drop_table_clause(token),
         None => Err(ParserError::DropTypeMissing),
-        Some(token) => Err(ParserError::DropTypeUnknown(token)),
+        Some(token) => Err(ParserError::DropTypeUnknown(token, "TABLE")),
     }
 }
 
