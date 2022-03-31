@@ -270,6 +270,29 @@ mod tests {
         assert_eq!(select_rows.len(), 0);
     }
 
+    #[test]
+    fn create_and_rename_table() {
+        let (_db_file, mut database) = open_test_database();
+        let create_table = Command::CreateTable {
+            table_name: SqlValue::Identificator("users".to_string()),
+            columns: vec![
+                ColumnDefinition {
+                    name: SqlValue::Identificator("id".to_string()),
+                    kind: ColumnType::Integer,
+                },
+            ],
+        };
+
+        assert!(database.execute(create_table).is_ok());
+
+        let rename_table = Command::RenameTable {
+            table_name: SqlValue::Identificator("users".to_string()),
+            new_table_name: SqlValue::Identificator("users_new".to_string()),
+        };
+
+        assert!(database.execute(rename_table).is_ok());
+    }
+
     fn open_test_database() -> (TempFile, Database) {
         let db_file = TempFile::new("database.db").unwrap();
         let temp_dir_path = db_file.temp_dir_path.to_str().unwrap();

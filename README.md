@@ -112,7 +112,7 @@ All strings stored with fixed 256 bytes alignment, that's why there is bunch of 
   - ✓ add column
   - ✓ drop column
 - alter table execution
-  - rename table
+  - ✓ rename table
   - rename column
   - add column
   - drop column
