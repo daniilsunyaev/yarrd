@@ -106,11 +106,11 @@ All strings stored with fixed 256 bytes alignment, that's why there is bunch of 
 - ✓ think of table error or table init error
 - ✓ allow capsed keywords
 - ✓ extract table name, column name parsing to a method
-- alter table parsing
+- ✓ alter table parsing
   - ✓ rename table
   - ✓ rename column
-  - add column
-  - drop column
+  - ✓ add column
+  - ✓ drop column
 - alter table execution
   - rename table
   - rename column
@@ -128,6 +128,8 @@ All strings stored with fixed 256 bytes alignment, that's why there is bunch of 
 - add pretty output of queries
 - implement limit
 - implement joins
+- allow to store strings with top limit less than 255 symbols (which will take less space)
+- think of calculating row cell offset via null bitmask, so null cells won't occupy space on disk
 - WAL
 - handle errors on db close and flush
 - restore from journal

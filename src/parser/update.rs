@@ -6,7 +6,7 @@ use crate::parser::shared::{parse_table_name, parse_column_name, parse_column_va
 
 pub fn parse_update_statement<'a, I>(mut token: I) -> Result<Command, ParserError<'a>>
 where
-    I: Iterator<Item = &'a Token> + std::fmt::Debug,
+    I: Iterator<Item = &'a Token>
 {
     let table_name = parse_table_name(&mut token)?;
     let (field_assignments, where_provided) = parse_field_assignments(&mut token)?;
@@ -22,7 +22,7 @@ where
 
 fn parse_field_assignments<'a, I>(mut token: I) -> Result<(Vec<FieldAssignment>, bool), ParserError<'a>>
 where
-    I: Iterator<Item = &'a Token> + std::fmt::Debug,
+    I: Iterator<Item = &'a Token>
 {
     let mut field_assignments = vec![];
 

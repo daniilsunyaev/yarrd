@@ -61,6 +61,14 @@ pub enum Command {
         column_name: SqlValue,
         new_column_name: SqlValue,
     },
+    AddTableColumn {
+        table_name: SqlValue,
+        column_definition: ColumnDefinition,
+    },
+    DropTableColumn {
+        table_name: SqlValue,
+        column_name: SqlValue,
+    },
     Void,
 }
 

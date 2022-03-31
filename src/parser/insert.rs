@@ -2,11 +2,11 @@ use crate::command::Command;
 use crate::lexer::{Token, SqlValue};
 use crate::parser::error::ParserError;
 use crate::parser::shared::{parse_table_name, parse_column_name, parse_column_value,
-    parse_left_parenthesis, parse_right_parenthesis};
+    parse_left_parenthesis, parse_csl_right_parenthesis};
 
 pub fn parse_insert_statement<'a, I>(mut token: I) -> Result<Command, ParserError<'a>>
 where
-    I: Iterator<Item = &'a Token> + std::fmt::Debug,
+    I: Iterator<Item = &'a Token>
 {
     match token.next() {
         Some(Token::Into) => parse_insert_into(token),
@@ -17,7 +17,7 @@ where
 
 fn parse_insert_into<'a, I>(mut token: I) -> Result<Command, ParserError<'a>>
 where
-    I: Iterator<Item = &'a Token> + std::fmt::Debug,
+    I: Iterator<Item = &'a Token>
 {
     let table_name = parse_table_name(&mut token)?;
     let column_names = parse_column_names(&mut token)?;
@@ -28,7 +28,7 @@ where
 
 fn parse_column_names<'a, I>(mut token: I) -> Result<Vec<SqlValue>, ParserError<'a>>
 where
-    I: Iterator<Item = &'a Token> + std::fmt::Debug,
+    I: Iterator<Item = &'a Token>
 {
     let mut columns = vec![];
 
@@ -38,7 +38,7 @@ where
         let name = parse_column_name(&mut token)?;
         columns.push(name);
 
-        match parse_right_parenthesis(&mut token, "column names")? {
+        match parse_csl_right_parenthesis(&mut token, "column names")? {
             true => break,
             false => { },
         };
@@ -49,7 +49,7 @@ where
 
 fn parse_values_expression<'a, I>(mut token: I) -> Result<Vec<SqlValue>, ParserError<'a>>
 where
-    I: Iterator<Item = &'a Token> + std::fmt::Debug,
+    I: Iterator<Item = &'a Token>
 {
     let mut values = vec![];
 
@@ -65,7 +65,7 @@ where
         let value = parse_column_value(&mut token)?;
         values.push(value);
 
-        match parse_right_parenthesis(&mut token, "column values")? {
+        match parse_csl_right_parenthesis(&mut token, "column values")? {
             true => break,
             false => { },
         };

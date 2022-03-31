@@ -6,7 +6,7 @@ use crate::parser::shared::parse_table_name;
 
 pub fn parse_delete_statement<'a, I>(mut token: I) -> Result<Command, ParserError<'a>>
 where
-    I: Iterator<Item = &'a Token> + std::fmt::Debug,
+    I: Iterator<Item = &'a Token>
 {
     match token.next() {
         Some(Token::From) => { },
