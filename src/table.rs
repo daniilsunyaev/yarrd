@@ -170,6 +170,14 @@ impl Table {
         Ok(())
     }
 
+    pub fn rename_column(&mut self, column_name: String, new_column_name: String) -> Result<(), TableError> {
+        let column_index = self.column_index(column_name.as_str())
+            .ok_or(TableError::ColumnNotExist { column_name: column_name.clone(), table_name: self.name.clone() })?;
+
+        self.column_names[column_index] = new_column_name;
+        Ok(())
+    }
+
     fn matching_rows(&mut self, where_clause: Option<WhereClause>) -> impl Iterator<Item = Result<(u64, Row), TableError>> + '_ {
         let where_filter = match where_clause {
             None => WhereFilter::dummy(),
@@ -187,7 +195,6 @@ impl Table {
                 },
                 Err(error) => Some(Err(error)),
             }
-
         })
     }
 

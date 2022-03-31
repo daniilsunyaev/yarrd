@@ -293,6 +293,30 @@ mod tests {
         assert!(database.execute(rename_table).is_ok());
     }
 
+    #[test]
+    fn create_table_and_rename_column() {
+        let (_db_file, mut database) = open_test_database();
+        let create_table = Command::CreateTable {
+            table_name: SqlValue::Identificator("users".to_string()),
+            columns: vec![
+                ColumnDefinition {
+                    name: SqlValue::Identificator("id".to_string()),
+                    kind: ColumnType::Integer,
+                },
+            ],
+        };
+
+        assert!(database.execute(create_table).is_ok());
+
+        let rename_table_column = Command::RenameTableColumn {
+            table_name: SqlValue::Identificator("users".to_string()),
+            column_name: SqlValue::Identificator("id".to_string()),
+            new_column_name: SqlValue::Identificator("id_new".to_string()),
+        };
+
+        assert!(database.execute(rename_table_column).is_ok());
+    }
+
     fn open_test_database() -> (TempFile, Database) {
         let db_file = TempFile::new("database.db").unwrap();
         let temp_dir_path = db_file.temp_dir_path.to_str().unwrap();
