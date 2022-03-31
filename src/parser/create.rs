@@ -1,9 +1,8 @@
 use crate::command::{Command, ColumnDefinition};
-use crate::table::ColumnType;
 use crate::lexer::Token;
 use crate::parser::error::ParserError;
 use crate::parser::shared::
-    {parse_table_name, parse_column_name, parse_left_parenthesis, parse_right_parenthesis};
+    {parse_table_name, parse_left_parenthesis, parse_csl_right_parenthesis, parse_column_definition};
 
 pub fn parse_create_statement<'a, I>(mut token: I) -> Result<Command, ParserError<'a>>
 where
@@ -27,25 +26,16 @@ where
 
 fn parse_column_definitions<'a, I>(mut token: I) -> Result<Vec<ColumnDefinition>, ParserError<'a>>
 where
-    I: Iterator<Item = &'a Token> + std::fmt::Debug,
+    I: Iterator<Item = &'a Token>
 {
     let mut columns = vec![];
     parse_left_parenthesis(&mut token, "column definitions")?;
 
     loop {
-        let name = parse_column_name(&mut token)?;
+        let column = parse_column_definition(&mut token)?;
+        columns.push(column);
 
-        let kind = match token.next() {
-            Some(Token::IntegerType) => ColumnType::Integer,
-            Some(Token::FloatType) => ColumnType::Float,
-            Some(Token::StringType) => ColumnType::String,
-            Some(token) => return Err(ParserError::ColumnTypeInvalid(token)),
-            None => return Err(ParserError::ColumnTypeMissing),
-        };
-
-        columns.push(ColumnDefinition { name, kind } );
-
-        match parse_right_parenthesis(&mut token, "column definitions")? {
+        match parse_csl_right_parenthesis(&mut token, "column definitions")? {
             true => break,
             false => { },
         };

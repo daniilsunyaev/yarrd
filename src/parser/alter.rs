@@ -1,7 +1,7 @@
 use crate::command::Command;
 use crate::lexer::Token;
 use crate::parser::error::ParserError;
-use crate::parser::shared::{parse_table_name, parse_column_name};
+use crate::parser::shared::{parse_table_name, parse_column_name, parse_column_definition};
 use crate::lexer::SqlValue;
 
 pub fn parse_alter_statement<'a, I>(mut token: I) -> Result<Command, ParserError<'a>>
@@ -29,6 +29,7 @@ where
                 Some(token) =>  Err(ParserError::RenameTypeUnknown(token)),
             }
         },
+        Some(Token::Add) => parse_add_column(token, table_name),
         None => Err(ParserError::AlterTableActionMissing),
         Some(token) => Err(ParserError::AlterTableActionUnknown(token)),
     }
@@ -59,4 +60,13 @@ where
         None => Err(ParserError::RenameTypeMissing),
         Some(token) =>  Err(ParserError::RenameTypeUnknown(token)),
     }
+}
+
+fn parse_add_column<'a, I>(mut token: I, table_name: SqlValue) -> Result<Command, ParserError<'a>>
+where
+    I: Iterator<Item = &'a Token>
+{
+    let column_definition = parse_column_definition(&mut token)?;
+
+    Ok(Command::AddTableColumn { table_name, column_definition })
 }

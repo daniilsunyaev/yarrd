@@ -109,7 +109,7 @@ All strings stored with fixed 256 bytes alignment, that's why there is bunch of 
 - alter table parsing
   - ✓ rename table
   - ✓ rename column
-  - add column
+  - ✓ add column
   - drop column
 - alter table execution
   - rename table
@@ -128,6 +128,8 @@ All strings stored with fixed 256 bytes alignment, that's why there is bunch of 
 - add pretty output of queries
 - implement limit
 - implement joins
+- allow to store strings with top limit less than 255 symbols (which will take less space)
+- think of calculating row cell offset via null bitmask, so null cells won't occupy space on disk
 - WAL
 - handle errors on db close and flush
 - restore from journal

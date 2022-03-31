@@ -2,7 +2,7 @@ use crate::command::Command;
 use crate::lexer::{Token, SqlValue};
 use crate::parser::error::ParserError;
 use crate::parser::shared::{parse_table_name, parse_column_name, parse_column_value,
-    parse_left_parenthesis, parse_right_parenthesis};
+    parse_left_parenthesis, parse_csl_right_parenthesis};
 
 pub fn parse_insert_statement<'a, I>(mut token: I) -> Result<Command, ParserError<'a>>
 where
@@ -38,7 +38,7 @@ where
         let name = parse_column_name(&mut token)?;
         columns.push(name);
 
-        match parse_right_parenthesis(&mut token, "column names")? {
+        match parse_csl_right_parenthesis(&mut token, "column names")? {
             true => break,
             false => { },
         };
@@ -65,7 +65,7 @@ where
         let value = parse_column_value(&mut token)?;
         values.push(value);
 
-        match parse_right_parenthesis(&mut token, "column values")? {
+        match parse_csl_right_parenthesis(&mut token, "column values")? {
             true => break,
             false => { },
         };

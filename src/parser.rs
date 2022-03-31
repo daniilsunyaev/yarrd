@@ -210,4 +210,16 @@ mod tests {
 
         assert!(parse_statement(input.iter()).is_ok());
     }
+
+    #[test]
+    fn alter_table_add_column() {
+        let input = vec![
+                Token::Alter, Token::Table,
+                Token::Value(SqlValue::Identificator("table_name".into())),
+                Token::Add, Token::Value(SqlValue::Identificator("column_name".into())),
+                Token::IntegerType,
+           ];
+
+        assert!(parse_statement(input.iter()).is_ok());
+    }
 }
