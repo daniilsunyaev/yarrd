@@ -104,6 +104,7 @@ impl Database {
             Command::InsertInto { table_name, column_names, values } => self.insert_rows(table_name, column_names, values),
             Command::Update { table_name, field_assignments, where_clause } => self.update_rows(table_name, field_assignments, where_clause),
             Command::Delete { table_name, where_clause } => self.delete_rows(table_name, where_clause),
+            Command::RenameTable { table_name, new_table_name } => self.rename_table(table_name, new_table_name),
             Command::Void => Ok(None),
             _ => Err(ExecutionError::TableNotExist("foo".to_string())), // TODO: this is temporary before we write implementation
         }
@@ -190,6 +191,29 @@ impl Database {
 
         table.delete(where_clause)?;
         Ok(None)
+    }
+
+    fn rename_table(&mut self, table_name: SqlValue, new_table_name: SqlValue) -> Result<Option<QueryResult>, ExecutionError> {
+        let table_name_string = table_name.to_string();
+        let new_table_name_string = new_table_name.to_string();
+        let table_filepath = Self::table_filepath(self.tables_dir.as_path(), table_name_string.as_str());
+        let new_table_filepath = Self::table_filepath(self.tables_dir.as_path(), new_table_name_string.as_str());
+
+        let table = match self.tables.remove(table_name_string.as_str()) {
+            None => return Err(ExecutionError::TableNotExist(table_name_string)),
+            Some(table) => table,
+        };
+
+        match fs::rename(table_filepath, new_table_filepath) {
+            Err(io_error) => {
+                self.tables.insert(table_name_string, table);
+                Err(io_error.into())
+            },
+            Ok(_) => {
+                self.tables.insert(new_table_name_string, table);
+                Ok(None)
+            }
+        }
     }
 
     fn table_filepath(tables_dir: &Path, table_name: &str) -> PathBuf {
