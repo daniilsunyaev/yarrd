@@ -106,11 +106,11 @@ All strings stored with fixed 256 bytes alignment, that's why there is bunch of 
 - ✓ think of table error or table init error
 - ✓ allow capsed keywords
 - ✓ extract table name, column name parsing to a method
-- alter table parsing
+- ✓ alter table parsing
   - ✓ rename table
   - ✓ rename column
   - ✓ add column
-  - drop column
+  - ✓ drop column
 - alter table execution
   - rename table
   - rename column
