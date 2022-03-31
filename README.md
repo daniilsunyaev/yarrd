@@ -113,7 +113,7 @@ All strings stored with fixed 256 bytes alignment, that's why there is bunch of 
   - ✓ drop column
 - alter table execution
   - ✓ rename table
-  - rename column
+  - ✓ rename column
   - add column
   - drop column
 - implement vacuum metacommand or something like that

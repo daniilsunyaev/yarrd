@@ -79,15 +79,19 @@ impl Database {
         Ok(Table::new(table_filepath, table_name, column_definitions)?)
     }
 
-    // TODO: return result instead of unwrapping and handle err (probably via logging)
     pub fn close(self) {
+        self.flush_schema();
+    }
+
+    // TODO: return result instead of unwrapping and handle err (probably via logging)
+    fn flush_schema(&self) {
         let mut database_file = OpenOptions::new()
             .write(true)
             .truncate(true)
-            .open(self.database_filepath).unwrap();
+            .open(&self.database_filepath).unwrap();
 
         writeln!(database_file, "{}", self.tables_dir.to_str().unwrap()).unwrap();
-        for (table_name, table) in self.tables {
+        for (table_name, table) in &self.tables {
             write!(database_file, "{}", table_name).unwrap();
             for i in 0..table.column_types.len() {
                 write!(database_file, " {} {}", table.column_names[i], table.column_types[i]).unwrap();
@@ -105,6 +109,8 @@ impl Database {
             Command::Update { table_name, field_assignments, where_clause } => self.update_rows(table_name, field_assignments, where_clause),
             Command::Delete { table_name, where_clause } => self.delete_rows(table_name, where_clause),
             Command::RenameTable { table_name, new_table_name } => self.rename_table(table_name, new_table_name),
+            Command::RenameTableColumn { table_name, column_name, new_column_name } =>
+                self.rename_table_column(table_name, column_name, new_column_name),
             Command::Void => Ok(None),
             _ => Err(ExecutionError::TableNotExist("foo".to_string())), // TODO: this is temporary before we write implementation
         }
@@ -214,6 +220,23 @@ impl Database {
                 Ok(None)
             }
         }
+    }
+
+    fn rename_table_column(&mut self, table_name: SqlValue, column_name: SqlValue, new_column_name: SqlValue) -> Result<Option<QueryResult>, ExecutionError> {
+        let table_name_string = table_name.to_string();
+        let column_name_string = column_name.to_string();
+        let new_column_name_string = new_column_name.to_string();
+
+        let table = match self.tables.get_mut(table_name_string.as_str()) {
+            None => return Err(ExecutionError::TableNotExist(table_name_string)),
+            Some(existing_table) => existing_table,
+        };
+
+        table.rename_column(column_name_string, new_column_name_string)?;
+
+        // TODO: use result, and rename column back if flush is not possible
+        self.flush_schema();
+        Ok(None)
     }
 
     fn table_filepath(tables_dir: &Path, table_name: &str) -> PathBuf {

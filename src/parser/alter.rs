@@ -58,8 +58,8 @@ where
                 new_column_name,
             })
         },
-        None => Err(ParserError::RenameTypeMissing),
-        Some(token) =>  Err(ParserError::RenameTypeUnknown(token)),
+        None => Err(ParserError::RenameColumnToMissing),
+        Some(token) => Err(ParserError::RenameColumnToExpected(token)),
     }
 }
 

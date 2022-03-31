@@ -18,6 +18,8 @@ pub enum ParserError<'a> {
     AlterTableActionUnknown(&'a Token),
     RenameTypeMissing,
     RenameTypeUnknown(&'a Token),
+    RenameColumnToExpected(&'a Token),
+    RenameColumnToMissing,
     InsertInvalid(&'a Token),
     IntoMissing,
     TableNameInvalid(&'a Token),
@@ -76,6 +78,9 @@ impl<'a> fmt::Display for ParserError<'a> {
             Self::RenameTypeMissing => "RENAME type is not provided".to_string(),
             Self::RenameTypeUnknown(rename_type) =>
                 format!("unknown RENAME type '{}', consider using RENAME TO", rename_type),
+            Self::RenameColumnToMissing => format!("wrong RENAME syntax, expected 'TO', got nothing"),
+            Self::RenameColumnToExpected(token) =>
+                format!("wrong RENAME syntax, expected TO, got {}", token),
             Self::InsertInvalid(token) => format!("expected INSERT INTO, got INSERT {}", token),
             Self::IntoMissing => "expected INSERT INTO, got INSERT".to_string(),
             Self::TableNameInvalid(table_name) => format!("'{}' is not a valid table name", table_name),
