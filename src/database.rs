@@ -157,45 +157,31 @@ impl Database {
     }
 
     fn select_rows(&mut self, table_name: SqlValue, column_names: Vec<SelectColumnName>, where_clause: Option<WhereClause>) -> Result<Option<QueryResult>, ExecutionError> {
-        let table_name_string = table_name.to_string();
-        let table = match self.tables.get_mut(table_name_string.as_str()) {
-            None => return Err(ExecutionError::TableNotExist(table_name_string)),
-            Some(existing_table) => existing_table,
-        };
+        let table = self.get_table(&table_name)?;
 
         Ok(Some(table.select(column_names, where_clause)?))
     }
 
     fn insert_rows(&mut self, table_name: SqlValue, column_names: Option<Vec<SqlValue>>, values: Vec<SqlValue>) -> Result<Option<QueryResult>, ExecutionError> {
-        let table_name_string = table_name.to_string();
-        let table = match self.tables.get_mut(table_name_string.as_str()) {
-            None => return Err(ExecutionError::TableNotExist(table_name_string)),
-            Some(existing_table) => existing_table,
-        };
+        let column_names = column_names
+            .map(|sql_names|
+                 sql_names.iter()
+                     .map(|sql_name| sql_name.to_string()).collect()
+                );
 
-        let column_names = column_names.map(|sql_names| sql_names.iter().map(|sql_name| sql_name.to_string()).collect());
-
+        let table = self.get_table(&table_name)?;
         table.insert(column_names, values)?;
         Ok(None)
     }
 
     fn update_rows(&mut self, table_name: SqlValue, field_assignments: Vec<FieldAssignment>, where_clause: Option<WhereClause>) -> Result<Option<QueryResult>, ExecutionError> {
-        let table_name_string = table_name.to_string();
-        let table = match self.tables.get_mut(table_name_string.as_str()) {
-            None => return Err(ExecutionError::TableNotExist(table_name_string)),
-            Some(existing_table) => existing_table,
-        };
-
+        let table = self.get_table(&table_name)?;
         table.update(field_assignments, where_clause)?;
         Ok(None)
     }
 
     fn delete_rows(&mut self, table_name: SqlValue, where_clause: Option<WhereClause>) -> Result<Option<QueryResult>, ExecutionError> {
-        let table_name_string = table_name.to_string();
-        let table = match self.tables.get_mut(table_name_string.as_str()) {
-            None => return Err(ExecutionError::TableNotExist(table_name_string)),
-            Some(existing_table) => existing_table,
-        };
+        let table = self.get_table(&table_name)?;
 
         table.delete(where_clause)?;
         Ok(None)
@@ -225,15 +211,10 @@ impl Database {
     }
 
     fn rename_table_column(&mut self, table_name: SqlValue, column_name: SqlValue, new_column_name: SqlValue) -> Result<Option<QueryResult>, ExecutionError> {
-        let table_name_string = table_name.to_string();
         let column_name_string = column_name.to_string();
         let new_column_name_string = new_column_name.to_string();
 
-        let table = match self.tables.get_mut(table_name_string.as_str()) {
-            None => return Err(ExecutionError::TableNotExist(table_name_string)),
-            Some(existing_table) => existing_table,
-        };
-
+        let table = self.get_table(&table_name)?;
         table.rename_column(column_name_string, new_column_name_string)?;
 
         // TODO: use result, and rename column back if flush is not possible
@@ -242,11 +223,7 @@ impl Database {
     }
 
     fn add_table_column(&mut self, table_name: SqlValue, column_definition: ColumnDefinition) -> Result<Option<QueryResult>, ExecutionError> {
-        let table_name_string = table_name.to_string();
-        let table = match self.tables.get_mut(table_name_string.as_str()) {
-            None => return Err(ExecutionError::TableNotExist(table_name_string)),
-            Some(existing_table) => existing_table,
-        };
+        let table = self.get_table(&table_name)?;
         let mut new_column_definitions = table.column_definitions();
         let table_column_types = table.column_types.clone();
         new_column_definitions.push(column_definition);
@@ -316,6 +293,14 @@ impl Database {
         self.drop_table(old_table_name)?;
         self.flush_schema(); //TODO: full rollback on flush error
         Ok(None)
+    }
+
+    fn get_table(&mut self, table_name: &SqlValue) -> Result<&mut Table, ExecutionError> {
+        let table_name_string = table_name.to_string();
+        match self.tables.get_mut(table_name_string.as_str()) {
+            None => Err(ExecutionError::TableNotExist(table_name_string)),
+            Some(existing_table) => Ok(existing_table),
+        }
     }
 
     fn table_filepath(tables_dir: &Path, table_name: &str) -> PathBuf {
