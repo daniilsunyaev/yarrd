@@ -1,8 +1,9 @@
-use std::time;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::io::{self, Write};
 use std::env;
+
+use crate::helpers::get_timestamp;
 
 pub struct TempFile {
     pub temp_dir_path: PathBuf,
@@ -40,14 +41,7 @@ impl TempFile {
     }
 
     fn generate_temdir_name() -> String {
-        format!("yarrd-test-{}", Self::get_timestamp())
-    }
-
-    fn get_timestamp() -> u128 {
-        time::SystemTime::now()
-            .duration_since(time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos()
+        format!("yarrd-test-{}", get_timestamp())
     }
 }
 
