@@ -1,3 +1,4 @@
+use std::time;
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
 use std::fs::{self, File, OpenOptions};
@@ -64,7 +65,7 @@ impl Database {
                 "STRING" => ColumnType::String,
                 _ => return Err(MetaCommandError::SchemaDefinitionInvalid {
                     table_name: table_name.to_string(),
-                    expected: "column type (INT/STRING)",
+                    expected: "column type (INT/FLOAT/STRING)",
                     actual: column_type_str.to_string(),
                 }),
             };
@@ -111,6 +112,7 @@ impl Database {
             Command::RenameTable { table_name, new_table_name } => self.rename_table(table_name, new_table_name),
             Command::RenameTableColumn { table_name, column_name, new_column_name } =>
                 self.rename_table_column(table_name, column_name, new_column_name),
+            Command::AddTableColumn { table_name, column_definition } => self.add_table_column(table_name, column_definition),
             Command::Void => Ok(None),
             _ => Err(ExecutionError::TableNotExist("foo".to_string())), // TODO: this is temporary before we write implementation
         }
@@ -239,9 +241,93 @@ impl Database {
         Ok(None)
     }
 
+    fn add_table_column(&mut self, table_name: SqlValue, column_definition: ColumnDefinition) -> Result<Option<QueryResult>, ExecutionError> {
+        let table_name_string = table_name.to_string();
+        let table = match self.tables.get_mut(table_name_string.as_str()) {
+            None => return Err(ExecutionError::TableNotExist(table_name_string)),
+            Some(existing_table) => existing_table,
+        };
+        let mut new_column_definitions = table.column_definitions();
+        let table_column_types = table.column_types.clone();
+        new_column_definitions.push(column_definition);
+        let temp_table_name = SqlValue::String(format!("{}-{}", table_name, Self::get_timestamp()));
+        self.create_table(temp_table_name.clone(), new_column_definitions)?;
+
+        match self.move_records_to_new_table_and_swap_tables(table_name.clone(), temp_table_name.clone(), &table_column_types) {
+            Ok(result) => Ok(result),
+            Err(move_error) => {
+                self.drop_table(temp_table_name.clone())
+                    .unwrap_or_else(|_| panic!("error selecting from table {}, \
+                                      and was unable to cleanup temporary table {}, consider dropping in manually",
+                                      table_name, temp_table_name));
+                Err(move_error)
+            }
+        }
+    }
+
+    fn move_records_to_new_table_and_swap_tables(&mut self, table_name: SqlValue, temp_table_name: SqlValue, table_column_types: &[ColumnType]) -> Result<Option<QueryResult>, ExecutionError> {
+        let temp_table_name_string = temp_table_name.to_string();
+        let all_rows_query_option = self.select_rows(table_name.clone(), vec![SelectColumnName::AllColumns], None)?;
+        let new_table = match self.tables.get_mut(temp_table_name_string.as_str()) {
+            None => return Err(ExecutionError::TableNotExist(temp_table_name_string)),
+            Some(existing_table) => existing_table,
+        };
+
+        if let Some(all_rows_query) = all_rows_query_option {
+            for row in all_rows_query.rows {
+                let mut sql_values = row.get_sql_values(table_column_types)?;
+                sql_values.push(SqlValue::Null);
+                new_table.insert(None, sql_values)?;
+            }
+        }
+
+        self.swap_tables_and_drop_old_table(table_name, temp_table_name)
+    }
+
+    fn swap_tables_and_drop_old_table(&mut self, table_name: SqlValue, temp_table_name: SqlValue) -> Result<Option<QueryResult>, ExecutionError> {
+        let old_table_temp_name = SqlValue::String(format!("{}-{}", table_name.to_string(), Self::get_timestamp()));
+        self.rename_table(table_name.clone(), old_table_temp_name.clone())?;
+
+        match self.rename_table(temp_table_name.clone(), table_name.clone()) {
+            Ok(_) => {
+                match self.drop_old_table_and_flush_schema(old_table_temp_name) {
+                    Ok(result) => Ok(result),
+                    Err(error) => {
+                        self.rename_table(table_name.clone(), temp_table_name.clone()).
+                            unwrap_or_else(|_| panic!(
+                                    "failed to rename {} back to {}, also new table {} needs to be cleaned up manually",
+                                    table_name, temp_table_name, temp_table_name.clone()) // TODO: Adjust names
+                              );
+                        Err(error)
+                    }
+                }
+            },
+            Err(error) => {
+                self.rename_table(old_table_temp_name.clone(), table_name.clone()).
+                    unwrap_or_else(|_| panic!("failed to rename {} back to {}, \
+                                              also new table {} needs to be cleaned up manually",
+                                              old_table_temp_name, table_name, temp_table_name));
+                Err(error)
+            }
+        }
+    }
+
+    fn drop_old_table_and_flush_schema(&mut self, old_table_name: SqlValue) -> Result<Option<QueryResult>, ExecutionError> {
+        self.drop_table(old_table_name)?;
+        self.flush_schema(); //TODO: full rollback on flush error
+        Ok(None)
+    }
+
     fn table_filepath(tables_dir: &Path, table_name: &str) -> PathBuf {
         let mut path = tables_dir.join(table_name);
         path.set_extension(TABLE_EXTENSION);
         path
+    }
+
+    fn get_timestamp() -> u128 {
+        time::SystemTime::now()
+            .duration_since(time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
     }
 }

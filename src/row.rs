@@ -91,6 +91,14 @@ impl Row {
         }
     }
 
+    pub fn get_sql_values(&self, column_types: &[ColumnType]) -> Result<Vec<SqlValue>, SerDeError> {
+        let mut sql_values = vec![];
+        for i in 0..column_types.len() {
+            sql_values.push(self.get_cell_sql_value(column_types, i)?);
+        }
+        Ok(sql_values)
+    }
+
     fn generate_byte_layout(column_types: &[ColumnType]) -> ByteLayout {
         let mut columns_offsets = vec![];
         for i in 0..column_types.len() {
@@ -151,4 +159,21 @@ impl Row {
 
     //     Ok(value_ref.clone())
     // }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn get_values() {
+        let column_types = [ColumnType::Integer, ColumnType::String];
+        let mut row = Row::new(&column_types);
+        row.set_cell(&column_types, 0, &SqlValue::Integer(0)).unwrap();
+        row.set_cell(&column_types, 1, &SqlValue::String("john".to_string())).unwrap();
+
+        let expected = vec![SqlValue::Integer(0), SqlValue::String("john".to_string())];
+        assert_eq!(row.get_sql_values(&column_types).unwrap(), expected);
+
+    }
 }

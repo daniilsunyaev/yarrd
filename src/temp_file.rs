@@ -49,7 +49,6 @@ impl TempFile {
             .unwrap()
             .as_nanos()
     }
-
 }
 
 impl Drop for TempFile {
