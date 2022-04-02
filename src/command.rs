@@ -343,6 +343,32 @@ mod tests {
         assert!(database.execute(add_table_column).is_ok());
     }
 
+    #[test]
+    fn create_table_and_drop_column() {
+        let (_db_file, mut database) = open_test_database();
+        let create_table = Command::CreateTable {
+            table_name: SqlValue::Identificator("users".to_string()),
+            columns: vec![
+                ColumnDefinition {
+                    name: SqlValue::Identificator("id".to_string()),
+                    kind: ColumnType::Integer,
+                },
+                ColumnDefinition {
+                    name: SqlValue::Identificator("name".to_string()),
+                    kind: ColumnType::String,
+                },
+            ],
+        };
+
+        assert!(database.execute(create_table).is_ok());
+
+        let drop_table_column = Command::DropTableColumn {
+            table_name: SqlValue::Identificator("users".to_string()),
+            column_name: SqlValue::String("name".to_string()),
+        };
+
+        assert!(database.execute(drop_table_column).is_ok());
+    }
 
     fn open_test_database() -> (TempFile, Database) {
         let db_file = TempFile::new("database.db").unwrap();

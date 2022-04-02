@@ -75,8 +75,7 @@ impl Table {
             match select_column_name {
                 SelectColumnName::Name(column_name) => {
                     let column_name = column_name.to_string();
-                    let column_index = self.column_index(&column_name)
-                        .ok_or(TableError::ColumnNotExist { column_name: column_name.clone(), table_name: self.name.clone() })?;
+                    let column_index = self.column_index_result(&column_name)?;
                     let column_type = *self.column_types.get(column_index)
                         .ok_or(TableError::ColumnNthNotExist { column_index, table_name: self.name.clone() })?;
                     result_column_names.push(column_name);
@@ -171,8 +170,7 @@ impl Table {
     }
 
     pub fn rename_column(&mut self, column_name: String, new_column_name: String) -> Result<(), TableError> {
-        let column_index = self.column_index(column_name.as_str())
-            .ok_or(TableError::ColumnNotExist { column_name: column_name.clone(), table_name: self.name.clone() })?;
+        let column_index = self.column_index_result(column_name.as_str())?;
 
         self.column_names[column_index] = new_column_name;
         Ok(())
@@ -216,8 +214,7 @@ impl Table {
         let mut column_indices = Vec::new();
         for column_name in column_names {
             column_indices.push(
-                self.column_index(column_name)
-                    .ok_or(TableError::ColumnNotExist { column_name: column_name.clone(), table_name: self.name.clone() })?
+                self.column_index_result(column_name)?
             );
         }
 
@@ -242,5 +239,10 @@ impl Table {
     pub fn column_index(&self, column_name: &str) -> Option<usize> {
         self.column_names.iter()
             .position(|table_column_name| table_column_name.eq(column_name))
+    }
+
+    pub fn column_index_result(&self, column_name: &str) -> Result<usize, TableError> {
+        self.column_index(column_name)
+            .ok_or(TableError::ColumnNotExist { column_name: column_name.to_string(), table_name: self.name.clone() })
     }
 }

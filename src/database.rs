@@ -113,8 +113,8 @@ impl Database {
             Command::RenameTableColumn { table_name, column_name, new_column_name } =>
                 self.rename_table_column(table_name, column_name, new_column_name),
             Command::AddTableColumn { table_name, column_definition } => self.add_table_column(table_name, column_definition),
+            Command::DropTableColumn { table_name, column_name } => self.drop_table_column(table_name, column_name),
             Command::Void => Ok(None),
-            _ => Err(ExecutionError::TableNotExist("foo".to_string())), // TODO: this is temporary before we write implementation
         }
     }
 
@@ -231,7 +231,7 @@ impl Database {
         let temp_new_table_name = Self::temporary_table_name(&table_name);
         self.create_table(temp_new_table_name.clone(), new_column_definitions)?;
 
-        match self.move_records_to_new_table_and_swap_tables(&table_name, &temp_new_table_name, &table_column_types) {
+        match self.move_extended_records_to_new_table_and_swap_tables(&table_name, &temp_new_table_name, &table_column_types) {
             Ok(result) => Ok(result),
             Err(move_error) => {
                 self.drop_table(temp_new_table_name.clone())
@@ -244,10 +244,10 @@ impl Database {
         }
     }
 
-    fn move_records_to_new_table_and_swap_tables(&mut self, target_table_name: &SqlValue, temp_new_table_name: &SqlValue,
+    fn move_extended_records_to_new_table_and_swap_tables(&mut self, target_table_name: &SqlValue, temp_new_table_name: &SqlValue,
                                                  table_column_types: &[ColumnType]) -> Result<Option<QueryResult>, ExecutionError> {
         let all_rows_query_option = self.select_rows(target_table_name.clone(), vec![SelectColumnName::AllColumns], None)?;
-        let new_table = self.get_table(&temp_new_table_name)?;
+        let new_table = self.get_table(temp_new_table_name)?;
 
         if let Some(all_rows_query) = all_rows_query_option {
             for row in all_rows_query.rows {
@@ -257,7 +257,7 @@ impl Database {
             }
         }
 
-        self.swap_tables_and_drop_old_table(&target_table_name, &temp_new_table_name)
+        self.swap_tables_and_drop_old_table(target_table_name, temp_new_table_name)
     }
 
     fn swap_tables_and_drop_old_table(&mut self, target_table_name: &SqlValue, temp_new_table_name: &SqlValue) -> Result<Option<QueryResult>, ExecutionError> {
@@ -301,6 +301,44 @@ impl Database {
         self.drop_table(old_table_name.clone())?;
         self.flush_schema(); //TODO: full rollback on flush error
         Ok(None)
+    }
+
+    fn drop_table_column(&mut self, table_name: SqlValue, column_name: SqlValue) -> Result<Option<QueryResult>, ExecutionError> {
+        let table = self.get_table(&table_name)?;
+        let droped_column_index = table.column_index_result(column_name.to_string().as_str())?;
+        let mut new_column_definitions = table.column_definitions();
+        let table_column_types = table.column_types.clone();
+        new_column_definitions.remove(droped_column_index);
+        let temp_new_table_name = Self::temporary_table_name(&table_name);
+        self.create_table(temp_new_table_name.clone(), new_column_definitions)?;
+
+        match self.move_shrinked_records_to_new_table_and_swap_tables(&table_name, &temp_new_table_name, &table_column_types, droped_column_index) {
+            Ok(result) => Ok(result),
+            Err(move_error) => {
+                self.drop_table(temp_new_table_name.clone())
+                    .unwrap_or_else(|error| panic!("error selecting from table {}: {}, \
+                                      and was unable to rollback: cleanup temporary table {} failed: {}, \
+                                      consider dropping in manually",
+                                      table_name, move_error, temp_new_table_name, error));
+                Err(move_error)
+            }
+        }
+    }
+
+    fn move_shrinked_records_to_new_table_and_swap_tables(&mut self, target_table_name: &SqlValue, temp_new_table_name: &SqlValue,
+                                                 table_column_types: &[ColumnType], drop_index: usize) -> Result<Option<QueryResult>, ExecutionError> {
+        let all_rows_query_option = self.select_rows(target_table_name.clone(), vec![SelectColumnName::AllColumns], None)?;
+        let new_table = self.get_table(temp_new_table_name)?;
+
+        if let Some(all_rows_query) = all_rows_query_option {
+            for row in all_rows_query.rows {
+                let mut sql_values = row.get_sql_values(table_column_types)?;
+                sql_values.remove(drop_index);
+                new_table.insert(None, sql_values)?;
+            }
+        }
+
+        self.swap_tables_and_drop_old_table(target_table_name, temp_new_table_name)
     }
 
     fn get_table(&mut self, table_name: &SqlValue) -> Result<&mut Table, ExecutionError> {
