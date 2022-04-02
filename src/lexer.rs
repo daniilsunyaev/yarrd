@@ -31,6 +31,7 @@ pub enum Token {
     Table,
     Values,
     Is,
+    Vacuum,
     IntegerType, // TODO: maybe extract types to separate enum
     StringType,
     FloatType,
@@ -69,6 +70,7 @@ impl fmt::Display for Token {
             Self::Table => "TABLE",
             Self::Values => "VALUES",
             Self::Is => "IS",
+            Self::Vacuum => "VACUUM",
             Self::IntegerType => "int",
             Self::StringType => "string",
             Self::FloatType => "float",
@@ -203,6 +205,7 @@ fn parse_token(str_token: &str) -> Token {
         "table" => Token::Table,
         "values" => Token::Values,
         "is" => Token::Is,
+        "vacuum" => Token::Vacuum,
         "int" => Token::IntegerType,
         "float" => Token::FloatType,
         "string" => Token::StringType,
@@ -260,13 +263,13 @@ mod tests {
 
     #[test]
     fn token_qoutes_parse() {
-        let valid_input = "CrEAte (row NULL \"column, type\" int -421 string 43.2552 \" ; \"";
+        let valid_input = "CrEAte vacuum (row NULL \"column, type\" int -421 string 43.2552 \" ; \"";
 
         assert!(to_tokens(valid_input).is_ok());
         assert_eq!(
             to_tokens(valid_input).unwrap(),
             vec![
-                Token::Create, Token::LeftParenthesis, Token::Value(SqlValue::Identificator("row".into())),
+                Token::Create, Token::Vacuum, Token::LeftParenthesis, Token::Value(SqlValue::Identificator("row".into())),
                 Token::Value(SqlValue::Null), Token::Value(SqlValue::String("column, type".to_string())),
                 Token::IntegerType, Token::Value(SqlValue::Integer(-421)), Token::StringType,
                 Token::Value(SqlValue::Float(43.2552)), Token::Value(SqlValue::String(" ; ".into()))

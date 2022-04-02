@@ -114,6 +114,7 @@ impl Database {
                 self.rename_table_column(table_name, column_name, new_column_name),
             Command::AddTableColumn { table_name, column_definition } => self.add_table_column(table_name, column_definition),
             Command::DropTableColumn { table_name, column_name } => self.drop_table_column(table_name, column_name),
+            Command::VacuumTable { table_name } => { Ok(None) },
             Command::Void => Ok(None),
         }
     }

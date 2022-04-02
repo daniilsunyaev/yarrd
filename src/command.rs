@@ -69,6 +69,9 @@ pub enum Command {
         table_name: SqlValue,
         column_name: SqlValue,
     },
+    VacuumTable {
+        table_name: SqlValue,
+    },
     Void,
 }
 
