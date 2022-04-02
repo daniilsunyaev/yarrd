@@ -178,6 +178,12 @@ impl Table {
         Ok(())
     }
 
+    pub fn column_definitions(&self) -> Vec<ColumnDefinition> {
+        self.column_names.iter().zip(self.column_types.iter())
+            .map(|(name, kind)| ColumnDefinition { name: SqlValue::String(name.clone()), kind: *kind })
+            .collect()
+    }
+
     fn matching_rows(&mut self, where_clause: Option<WhereClause>) -> impl Iterator<Item = Result<(u64, Row), TableError>> + '_ {
         let where_filter = match where_clause {
             None => WhereFilter::dummy(),

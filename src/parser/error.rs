@@ -78,7 +78,7 @@ impl<'a> fmt::Display for ParserError<'a> {
             Self::RenameTypeMissing => "RENAME type is not provided".to_string(),
             Self::RenameTypeUnknown(rename_type) =>
                 format!("unknown RENAME type '{}', consider using RENAME TO", rename_type),
-            Self::RenameColumnToMissing => format!("wrong RENAME syntax, expected 'TO', got nothing"),
+            Self::RenameColumnToMissing => "wrong RENAME syntax, expected 'TO', got nothing".to_string(),
             Self::RenameColumnToExpected(token) =>
                 format!("wrong RENAME syntax, expected TO, got {}", token),
             Self::InsertInvalid(token) => format!("expected INSERT INTO, got INSERT {}", token),
