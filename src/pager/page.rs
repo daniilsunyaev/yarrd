@@ -30,6 +30,13 @@ impl Page {
         }
     }
 
+    pub fn get_first_row(&self) -> Option<Row> {
+        match self.first_occupied_row_number() {
+            None => None,
+            Some(i) => self.get_row(i),
+        }
+    }
+
     pub fn delete_row(&mut self, page_row_number: usize) {
         self.flag_row_presence_status(page_row_number, false);
         self.modified = true;
@@ -49,6 +56,10 @@ impl Page {
         self.mut_row_bytes(page_row_number).copy_from_slice(row.as_bytes());
         self.flag_row_presence_status(page_row_number, true);
         self.modified = true;
+    }
+
+    pub fn has_free_rows(&self) -> bool {
+        self.free_row_number().is_some()
     }
 
     fn flag_row_presence_status(&mut self, page_row_number: usize, new_status: bool) {
@@ -72,8 +83,19 @@ impl Page {
     }
 
     fn free_row_number(&self) -> Option<usize> {
+        self.first_row_number(false)
+    }
+
+    fn first_occupied_row_number(&self) -> Option<usize> {
+        self.first_row_number(true)
+    }
+
+    fn first_row_number(&self, presence_status: bool) -> Option<usize> {
         for (byte_i, byte) in self.free_row_bitmask().iter().enumerate() {
-            let mod_8_row_number = byte.trailing_ones();
+            let mod_8_row_number = match presence_status {
+                true => byte.trailing_zeros(),
+                false => byte.trailing_ones(),
+            };
             if mod_8_row_number < 8 {
                 let bit_based_row_number = byte_i * 8 + mod_8_row_number as usize;
                 if bit_based_row_number >= self.row_count() {
@@ -134,5 +156,45 @@ mod tests {
         assert_eq!(Page::calculate_row_count(50), 81);
         assert_eq!(Page::calculate_row_count(100), 40);
         assert_eq!(Page::calculate_row_count(1000), 4);
+    }
+
+    #[test]
+    fn get_free_row_number() {
+        let mut bytes = [0u8; PAGE_SIZE];
+        // one page can contain forteen 292-byte rows
+        let mut page = Page::new(292, bytes.clone());
+
+        assert_eq!(page.free_row_number(), Some(0));
+
+        bytes[0] = 0b11111111;
+        bytes[1] = 0b11110111;
+        let mut page = Page::new(292, bytes.clone());
+
+        assert_eq!(page.free_row_number(), Some(11));
+
+        bytes[0] = 0b11111111;
+        bytes[1] = 0b10111111;
+        let mut page = Page::new(292, bytes.clone());
+
+        assert_eq!(page.free_row_number(), None);
+    }
+
+    #[test]
+    fn get_first_row() {
+        let mut bytes = [0u8; PAGE_SIZE];
+        bytes[1] = 0b00000100;
+        for i in 2..PAGE_SIZE {
+            bytes[i] = (i % 256) as u8;
+        }
+
+        let eleventh_row_bytes: Vec<u8> = (2920..3212).map(|i| ((i + 2) % 256) as u8).collect();
+        let page = Page::new(292, bytes.clone());
+        assert!(page.get_first_row().is_some());
+        assert_eq!(page.get_first_row().unwrap().as_bytes(), eleventh_row_bytes);
+
+        let mut bytes = [0u8; PAGE_SIZE];
+        bytes[1] = 0b01000000;
+        let page = Page::new(292, bytes.clone());
+        assert!(page.get_first_row().is_none());
     }
 }
