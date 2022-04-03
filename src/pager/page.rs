@@ -75,7 +75,12 @@ impl Page {
         for (byte_i, byte) in self.free_row_bitmask().iter().enumerate() {
             let mod_8_row_number = byte.trailing_ones();
             if mod_8_row_number < 8 {
-                return Some(byte_i * 8 + mod_8_row_number as usize)
+                let bit_based_row_number = byte_i * 8 + mod_8_row_number as usize;
+                if bit_based_row_number >= self.row_count() {
+                    return None
+                } else {
+                    return Some(bit_based_row_number)
+                }
             }
         }
         None
@@ -87,6 +92,10 @@ impl Page {
 
     fn free_row_bitmask_size(row_count: usize) -> usize {
         (row_count + 7) / 8
+    }
+
+    fn row_count(&self) -> usize {
+        Self::calculate_row_count(self.row_size)
     }
 
     pub fn calculate_row_count(row_size: usize) -> usize {

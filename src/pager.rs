@@ -9,7 +9,7 @@ use page::{Page, PAGE_SIZE};
 use crate::row::Row;
 
 mod lru;
-mod page;
+pub mod page;
 
 const PAGE_CACHE_SIZE: usize = 10;
 const MAX_ROW_SIZE: usize = PAGE_SIZE - 1; // wee need at least 1 byte for deleted row flag on the page
@@ -72,14 +72,14 @@ impl Pager {
 
     pub fn get_row(&mut self, row_id: u64) -> Result<Option<Row>, PagerError> {
         let row_number = self.page_row_number(row_id);
-        let page = self.get_page(row_id)?;
+        let page = self.get_page_by_row_id(row_id)?;
 
         Ok(page.get_row(row_number))
     }
 
     pub fn delete_row(&mut self, row_id: u64) -> Result<(), PagerError> {
         let row_number = self.page_row_number(row_id);
-        let page = self.get_page(row_id)?;
+        let page = self.get_page_by_row_id(row_id)?;
 
         page.delete_row(row_number);
         Ok(())
@@ -96,14 +96,18 @@ impl Pager {
 
     pub fn update_row(&mut self, row_id: u64, row: &Row) -> Result<(), PagerError> {
         let row_number = self.page_row_number(row_id);
-        let page = self.get_page(row_id)?;
+        let page = self.get_page_by_row_id(row_id)?;
 
         page.update_row(row_number, row);
         Ok(())
     }
 
-    fn get_page(&mut self, row_id: u64) -> Result<&mut Page, PagerError> {
+    fn get_page_by_row_id(&mut self, row_id: u64) -> Result<&mut Page, PagerError> {
         let page_id = self.page_id(row_id);
+        self.get_page(page_id)
+    }
+
+    fn get_page(&mut self, page_id: u64) -> Result<&mut Page, PagerError> {
         match self.page_cache.contains_key(&page_id) {
             true => Ok(self.page_cache.get_mut(&page_id).unwrap()),
             false => {
@@ -236,12 +240,12 @@ mod tests {
         table_file.write_bytes(&contents).unwrap();
         let mut pager = Pager::new(table_file.path(), 8).unwrap();
 
-        assert_eq!(pager.get_page(0).unwrap().modified, false);
-        assert_eq!(pager.get_page(505).unwrap().modified, false); // 505th row is on the second page
+        assert_eq!(pager.get_page_by_row_id(0).unwrap().modified, false);
+        assert_eq!(pager.get_page_by_row_id(505).unwrap().modified, false); // 505th row is on the second page
 
         pager.delete_row(5).unwrap(); // 5th row is on the 0th page
 
-        assert_eq!(pager.get_page(0).unwrap().modified, true);
-        assert_eq!(pager.get_page(505).unwrap().modified, false);
+        assert_eq!(pager.get_page_by_row_id(0).unwrap().modified, true);
+        assert_eq!(pager.get_page_by_row_id(505).unwrap().modified, false);
     }
 }
