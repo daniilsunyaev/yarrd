@@ -30,10 +30,22 @@ impl Page {
         }
     }
 
+    #[cfg(test)]
     pub fn get_first_row(&self) -> Option<Row> {
         match self.first_occupied_row_number() {
             None => None,
             Some(i) => self.get_row(i),
+        }
+    }
+
+    pub fn drain_first_row(&mut self) -> Option<Row> {
+        match self.first_occupied_row_number() {
+            None => None,
+            Some(i) => {
+                let row = self.get_row(i);
+                self.delete_row(i);
+                row
+            }
         }
     }
 
@@ -60,6 +72,10 @@ impl Page {
 
     pub fn has_free_rows(&self) -> bool {
         self.free_row_number().is_some()
+    }
+
+    pub fn is_blank(&self) -> bool {
+        self.first_occupied_row_number().is_none()
     }
 
     fn flag_row_presence_status(&mut self, page_row_number: usize, new_status: bool) {
@@ -162,19 +178,19 @@ mod tests {
     fn get_free_row_number() {
         let mut bytes = [0u8; PAGE_SIZE];
         // one page can contain forteen 292-byte rows
-        let mut page = Page::new(292, bytes.clone());
+        let page = Page::new(292, bytes.clone());
 
         assert_eq!(page.free_row_number(), Some(0));
 
         bytes[0] = 0b11111111;
         bytes[1] = 0b11110111;
-        let mut page = Page::new(292, bytes.clone());
+        let page = Page::new(292, bytes.clone());
 
         assert_eq!(page.free_row_number(), Some(11));
 
         bytes[0] = 0b11111111;
         bytes[1] = 0b10111111;
-        let mut page = Page::new(292, bytes.clone());
+        let page = Page::new(292, bytes.clone());
 
         assert_eq!(page.free_row_number(), None);
     }

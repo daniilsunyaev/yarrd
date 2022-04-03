@@ -182,6 +182,10 @@ impl Table {
             .collect()
     }
 
+    pub fn vacuum(&mut self) -> Result<(), TableError> {
+        self.pager.vacuum().map_err(TableError::VacuumFailed)
+    }
+
     fn matching_rows(&mut self, where_clause: Option<WhereClause>) -> impl Iterator<Item = Result<(u64, Row), TableError>> + '_ {
         let where_filter = match where_clause {
             None => WhereFilter::dummy(),

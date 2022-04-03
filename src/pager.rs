@@ -102,6 +102,33 @@ impl Pager {
         Ok(())
     }
 
+    pub fn vacuum(&mut self) -> Result<(), PagerError> {
+        loop {
+            let last_page_id = match self.last_page_id()? {
+                Some(id) => id,
+                None => return Ok(()),
+            };
+            let semi_free_page_id = match self.next_semi_free_page_id(0)? {
+                Some(id) => id,
+                None => return Ok(()),
+            };
+
+            if semi_free_page_id >= last_page_id { break };
+
+            let last_page = self.get_page(last_page_id)?;
+            if let Some(movable_row) = last_page.drain_first_row() {
+                let semi_free_page = self.get_page(semi_free_page_id)?;
+                semi_free_page.insert_row(&movable_row)?;
+            }
+
+            if self.get_page(last_page_id)?.is_blank() {
+                self.truncate_last_page()?;
+            }
+        }
+
+        Ok(())
+    }
+
     fn get_page_by_row_id(&mut self, row_id: u64) -> Result<&mut Page, PagerError> {
         let page_id = self.page_id(row_id);
         self.get_page(page_id)
@@ -119,6 +146,21 @@ impl Pager {
                 Ok(page)
             }
         }
+    }
+
+    fn next_semi_free_page_id(&mut self, page_id: u64) -> Result<Option<u64>, PagerError> {
+        let last_page_id = match self.last_page_id()? {
+            Some(id) => id,
+            None => return Ok(None),
+        };
+        let mut page_id = page_id;
+        while page_id <= last_page_id {
+            match self.get_page(page_id)?.has_free_rows() {
+                true => return Ok(Some(page_id)),
+                false => page_id += 1,
+            }
+        }
+        Ok(None)
     }
 
     pub fn max_rows(&self) -> u64 {
@@ -149,6 +191,12 @@ impl Pager {
         let table_file_size = self.table_file.metadata()?.len();
         self.table_file.set_len(table_file_size + PAGE_SIZE as u64)?;
         Ok(self.last_page_id()?.unwrap())
+    }
+
+    fn truncate_last_page(&mut self) -> io::Result<()> {
+        let table_file_size = self.table_file.metadata()?.len();
+        self.table_file.set_len(table_file_size - PAGE_SIZE as u64)?;
+        Ok(())
     }
 
     fn load_page_bytes(file: &mut File, page_id: u64) -> Result<[u8; PAGE_SIZE], PagerError> {

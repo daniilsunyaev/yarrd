@@ -20,6 +20,7 @@ pub enum TableError {
     CannotUpdateRow(PagerError),
     CannotDeleteRow(PagerError),
     CmpError(CmpError),
+    VacuumFailed(PagerError),
 }
 
 impl fmt::Display for TableError {
@@ -41,6 +42,7 @@ impl fmt::Display for TableError {
             Self::CannotUpdateRow(_pager_error) => write!(f, "cannot update row in the table"),
             Self::CannotDeleteRow(_pager_error) => write!(f, "cannot delete row in the table"),
             Self::CmpError(cmp_error) => write!(f, "{}", cmp_error),
+            Self::VacuumFailed(_pager_error) => write!(f, "failed to vaccum table"),
         }
     }
 }
@@ -49,6 +51,7 @@ impl Error for TableError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
             Self::CmpError(cmp_error) => Some(cmp_error),
+            Self::VacuumFailed(vacuum_error) => Some(vacuum_error),
             _ => None,
         }
     }
