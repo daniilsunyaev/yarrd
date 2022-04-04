@@ -103,6 +103,8 @@ impl Pager {
     }
 
     pub fn vacuum(&mut self) -> Result<(), PagerError> {
+        self.truncate_trailing_blank_pages()?;
+
         loop {
             let last_page_id = match self.last_page_id()? {
                 Some(id) => id,
@@ -120,10 +122,7 @@ impl Pager {
                 let semi_free_page = self.get_page(semi_free_page_id)?;
                 semi_free_page.insert_row(&movable_row)?;
             }
-
-            if self.get_page(last_page_id)?.is_blank() {
-                self.truncate_last_page()?;
-            }
+            self.truncate_trailing_blank_pages()?;
         }
 
         Ok(())
@@ -170,13 +169,30 @@ impl Pager {
         }
     }
 
+    fn truncate_trailing_blank_pages(&mut self) -> Result<(), PagerError> {
+        loop {
+            let (page_id, page) = self.get_last_page_with_page_id()?;
+            if page.is_blank() {
+                self.remove_page_from_cache(page_id)?;
+                self.truncate_last_page()?;
+            } else {
+                break
+            }
+        }
+        Ok(())
+    }
+
     fn get_last_page(&mut self) -> Result<&mut Page, PagerError> {
+        Ok(self.get_last_page_with_page_id()?.1)
+    }
+
+    fn get_last_page_with_page_id(&mut self) -> Result<(u64, &mut Page), PagerError> {
         let page_id = match self.last_page_id()? {
             None => self.allocate_new_page()?,
             Some(page_id) => page_id,
         };
 
-        self.get_page(page_id)
+        Ok((page_id, self.get_page(page_id)?))
     }
 
     fn last_page_id(&self) -> io::Result<Option<u64>> {
@@ -212,6 +228,7 @@ impl Pager {
             Self::flush(&mut self.table_file, page_data)?
         }
         Ok(())
+
     }
 
     fn flush(file: &mut File, page_data: Option<(u64, Page)>) -> Result<(), io::Error> {
@@ -220,6 +237,14 @@ impl Pager {
             file.seek(SeekFrom::Start(PAGE_SIZE as u64 * page_id))?;
             file.write_all(page.as_bytes())?;
         }
+        Ok(())
+    }
+
+    fn remove_page_from_cache(&mut self, page_id: u64) -> Result<(), io::Error> {
+        if let Some(page) = self.page_cache.remove(&page_id) {
+            Self::flush(&mut self.table_file, Some((page_id, page)))?
+        }
+
         Ok(())
     }
 
