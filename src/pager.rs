@@ -103,26 +103,21 @@ impl Pager {
     }
 
     pub fn vacuum(&mut self) -> Result<(), PagerError> {
-        self.truncate_trailing_blank_pages()?;
-
         loop {
-            let last_page_id = match self.last_page_id()? {
-                Some(id) => id,
-                None => return Ok(()),
-            };
+            self.truncate_trailing_blank_pages()?;
+
             let semi_free_page_id = match self.next_semi_free_page_id(0)? {
                 Some(id) => id,
-                None => return Ok(()),
+                None => break,
             };
+            let (last_page_id, last_page) = self.get_last_page_with_page_id()?;
 
             if semi_free_page_id >= last_page_id { break };
 
-            let last_page = self.get_page(last_page_id)?;
             if let Some(movable_row) = last_page.drain_first_row() {
                 let semi_free_page = self.get_page(semi_free_page_id)?;
                 semi_free_page.insert_row(&movable_row)?;
             }
-            self.truncate_trailing_blank_pages()?;
         }
 
         Ok(())
@@ -228,7 +223,6 @@ impl Pager {
             Self::flush(&mut self.table_file, page_data)?
         }
         Ok(())
-
     }
 
     fn flush(file: &mut File, page_data: Option<(u64, Page)>) -> Result<(), io::Error> {

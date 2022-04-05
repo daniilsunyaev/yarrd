@@ -41,11 +41,7 @@ impl Page {
     pub fn drain_first_row(&mut self) -> Option<Row> {
         match self.first_occupied_row_number() {
             None => None,
-            Some(i) => {
-                let row = self.get_row(i);
-                self.delete_row(i);
-                row
-            }
+            Some(i) => self.drain_row(i)
         }
     }
 
@@ -76,6 +72,12 @@ impl Page {
 
     pub fn is_blank(&self) -> bool {
         self.first_occupied_row_number().is_none()
+    }
+
+    fn drain_row(&mut self, row_number: usize) -> Option<Row> {
+        let row = self.get_row(row_number);
+        self.delete_row(row_number);
+        row
     }
 
     fn flag_row_presence_status(&mut self, page_row_number: usize, new_status: bool) {
