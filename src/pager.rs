@@ -103,17 +103,18 @@ impl Pager {
     }
 
     pub fn vacuum(&mut self) -> Result<(), PagerError> {
+        let semi_free_page_id = 0;
         loop {
             self.truncate_trailing_blank_pages()?;
 
-            let semi_free_page_id = match self.next_semi_free_page_id(0)? {
-                Some(id) => id,
+            let (semi_free_page_id, last_page_id) = match self.next_semi_free_page_id(semi_free_page_id)? {
+                Some((id, last_page_id)) => (id, last_page_id),
                 None => break,
             };
-            let (last_page_id, last_page) = self.get_last_page_with_page_id()?;
 
             if semi_free_page_id >= last_page_id { break };
 
+            let last_page = self.get_page(last_page_id)?;
             if let Some(movable_row) = last_page.drain_first_row() {
                 let semi_free_page = self.get_page(semi_free_page_id)?;
                 semi_free_page.insert_row(&movable_row)?;
@@ -142,7 +143,7 @@ impl Pager {
         }
     }
 
-    fn next_semi_free_page_id(&mut self, page_id: u64) -> Result<Option<u64>, PagerError> {
+    fn next_semi_free_page_id(&mut self, page_id: u64) -> Result<Option<(u64, u64)>, PagerError> {
         let last_page_id = match self.last_page_id()? {
             Some(id) => id,
             None => return Ok(None),
@@ -150,7 +151,7 @@ impl Pager {
         let mut page_id = page_id;
         while page_id <= last_page_id {
             match self.get_page(page_id)?.has_free_rows() {
-                true => return Ok(Some(page_id)),
+                true => return Ok(Some((page_id, last_page_id))),
                 false => page_id += 1,
             }
         }
