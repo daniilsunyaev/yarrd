@@ -143,16 +143,15 @@ impl Pager {
         }
     }
 
-    fn next_semi_free_page_id(&mut self, page_id: u64) -> Result<Option<(u64, u64)>, PagerError> {
+    fn next_semi_free_page_id(&mut self, start_from_page_id: u64) -> Result<Option<(u64, u64)>, PagerError> {
         let last_page_id = match self.last_page_id()? {
             Some(id) => id,
             None => return Ok(None),
         };
-        let mut page_id = page_id;
-        while page_id <= last_page_id {
-            match self.get_page(page_id)?.has_free_rows() {
-                true => return Ok(Some((page_id, last_page_id))),
-                false => page_id += 1,
+
+        for page_id in start_from_page_id..=last_page_id {
+            if self.get_page(page_id)?.has_free_rows() {
+                return Ok(Some((page_id, last_page_id)))
             }
         }
         Ok(None)
@@ -170,7 +169,7 @@ impl Pager {
             let (page_id, page) = self.get_last_page_with_page_id()?;
             if page.is_blank() {
                 self.remove_page_from_cache(page_id)?;
-                self.truncate_last_page()?;
+                self.truncate_last_page_in_file()?;
             } else {
                 break
             }
@@ -205,7 +204,7 @@ impl Pager {
         Ok(self.last_page_id()?.unwrap())
     }
 
-    fn truncate_last_page(&mut self) -> io::Result<()> {
+    fn truncate_last_page_in_file(&mut self) -> io::Result<()> {
         let table_file_size = self.table_file.metadata()?.len();
         self.table_file.set_len(table_file_size - PAGE_SIZE as u64)?;
         Ok(())
