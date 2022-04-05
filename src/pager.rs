@@ -9,7 +9,7 @@ use page::{Page, PAGE_SIZE};
 use crate::row::Row;
 
 mod lru;
-mod page;
+pub mod page;
 
 const PAGE_CACHE_SIZE: usize = 10;
 const MAX_ROW_SIZE: usize = PAGE_SIZE - 1; // wee need at least 1 byte for deleted row flag on the page
@@ -72,14 +72,14 @@ impl Pager {
 
     pub fn get_row(&mut self, row_id: u64) -> Result<Option<Row>, PagerError> {
         let row_number = self.page_row_number(row_id);
-        let page = self.get_page(row_id)?;
+        let page = self.get_page_by_row_id(row_id)?;
 
         Ok(page.get_row(row_number))
     }
 
     pub fn delete_row(&mut self, row_id: u64) -> Result<(), PagerError> {
         let row_number = self.page_row_number(row_id);
-        let page = self.get_page(row_id)?;
+        let page = self.get_page_by_row_id(row_id)?;
 
         page.delete_row(row_number);
         Ok(())
@@ -96,14 +96,40 @@ impl Pager {
 
     pub fn update_row(&mut self, row_id: u64, row: &Row) -> Result<(), PagerError> {
         let row_number = self.page_row_number(row_id);
-        let page = self.get_page(row_id)?;
+        let page = self.get_page_by_row_id(row_id)?;
 
         page.update_row(row_number, row);
         Ok(())
     }
 
-    fn get_page(&mut self, row_id: u64) -> Result<&mut Page, PagerError> {
+    pub fn vacuum(&mut self) -> Result<(), PagerError> {
+        let semi_free_page_id = 0;
+        loop {
+            self.truncate_trailing_blank_pages()?;
+
+            let (semi_free_page_id, last_page_id) = match self.next_semi_free_page_id(semi_free_page_id)? {
+                Some((id, last_page_id)) => (id, last_page_id),
+                None => break,
+            };
+
+            if semi_free_page_id >= last_page_id { break };
+
+            let last_page = self.get_page(last_page_id)?;
+            if let Some(movable_row) = last_page.drain_first_row() {
+                let semi_free_page = self.get_page(semi_free_page_id)?;
+                semi_free_page.insert_row(&movable_row)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn get_page_by_row_id(&mut self, row_id: u64) -> Result<&mut Page, PagerError> {
         let page_id = self.page_id(row_id);
+        self.get_page(page_id)
+    }
+
+    fn get_page(&mut self, page_id: u64) -> Result<&mut Page, PagerError> {
         match self.page_cache.contains_key(&page_id) {
             true => Ok(self.page_cache.get_mut(&page_id).unwrap()),
             false => {
@@ -117,6 +143,20 @@ impl Pager {
         }
     }
 
+    fn next_semi_free_page_id(&mut self, start_from_page_id: u64) -> Result<Option<(u64, u64)>, PagerError> {
+        let last_page_id = match self.last_page_id()? {
+            Some(id) => id,
+            None => return Ok(None),
+        };
+
+        for page_id in start_from_page_id..=last_page_id {
+            if self.get_page(page_id)?.has_free_rows() {
+                return Ok(Some((page_id, last_page_id)))
+            }
+        }
+        Ok(None)
+    }
+
     pub fn max_rows(&self) -> u64 {
         match self.last_page_id().unwrap() { // TODO: check if it is successful
             None => 0,
@@ -124,13 +164,30 @@ impl Pager {
         }
     }
 
+    fn truncate_trailing_blank_pages(&mut self) -> Result<(), PagerError> {
+        loop {
+            let (page_id, page) = self.get_last_page_with_page_id()?;
+            if page.is_blank() {
+                self.remove_page_from_cache(page_id)?;
+                self.truncate_last_page_in_file()?;
+            } else {
+                break
+            }
+        }
+        Ok(())
+    }
+
     fn get_last_page(&mut self) -> Result<&mut Page, PagerError> {
+        Ok(self.get_last_page_with_page_id()?.1)
+    }
+
+    fn get_last_page_with_page_id(&mut self) -> Result<(u64, &mut Page), PagerError> {
         let page_id = match self.last_page_id()? {
             None => self.allocate_new_page()?,
             Some(page_id) => page_id,
         };
 
-        self.get_page(page_id)
+        Ok((page_id, self.get_page(page_id)?))
     }
 
     fn last_page_id(&self) -> io::Result<Option<u64>> {
@@ -145,6 +202,12 @@ impl Pager {
         let table_file_size = self.table_file.metadata()?.len();
         self.table_file.set_len(table_file_size + PAGE_SIZE as u64)?;
         Ok(self.last_page_id()?.unwrap())
+    }
+
+    fn truncate_last_page_in_file(&mut self) -> io::Result<()> {
+        let table_file_size = self.table_file.metadata()?.len();
+        self.table_file.set_len(table_file_size - PAGE_SIZE as u64)?;
+        Ok(())
     }
 
     fn load_page_bytes(file: &mut File, page_id: u64) -> Result<[u8; PAGE_SIZE], PagerError> {
@@ -168,6 +231,14 @@ impl Pager {
             file.seek(SeekFrom::Start(PAGE_SIZE as u64 * page_id))?;
             file.write_all(page.as_bytes())?;
         }
+        Ok(())
+    }
+
+    fn remove_page_from_cache(&mut self, page_id: u64) -> Result<(), io::Error> {
+        if let Some(page) = self.page_cache.remove(&page_id) {
+            Self::flush(&mut self.table_file, Some((page_id, page)))?
+        }
+
         Ok(())
     }
 
@@ -236,12 +307,12 @@ mod tests {
         table_file.write_bytes(&contents).unwrap();
         let mut pager = Pager::new(table_file.path(), 8).unwrap();
 
-        assert_eq!(pager.get_page(0).unwrap().modified, false);
-        assert_eq!(pager.get_page(505).unwrap().modified, false); // 505th row is on the second page
+        assert_eq!(pager.get_page_by_row_id(0).unwrap().modified, false);
+        assert_eq!(pager.get_page_by_row_id(505).unwrap().modified, false); // 505th row is on the second page
 
         pager.delete_row(5).unwrap(); // 5th row is on the 0th page
 
-        assert_eq!(pager.get_page(0).unwrap().modified, true);
-        assert_eq!(pager.get_page(505).unwrap().modified, false);
+        assert_eq!(pager.get_page_by_row_id(0).unwrap().modified, true);
+        assert_eq!(pager.get_page_by_row_id(505).unwrap().modified, false);
     }
 }

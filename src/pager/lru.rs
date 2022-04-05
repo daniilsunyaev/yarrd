@@ -51,7 +51,6 @@ impl<K: Eq + Hash + Copy, V> Lru<K, V> {
             use_sequence.push(LinkedNode { key: None, value: None, next, prev });
         }
 
-
         let key_location = HashMap::new();
 
         Ok(Lru { use_sequence, key_location, current: 0 })
@@ -107,6 +106,16 @@ impl<K: Eq + Hash + Copy, V> Lru<K, V> {
                 }
             },
 
+        }
+    }
+
+    pub fn remove(&mut self, key: &K) -> Option<V> {
+        match self.key_location.remove(key) {
+            Some(key_index) => {
+                self.use_sequence[key_index].key = None;
+                self.use_sequence[key_index].value.take()
+            },
+            None => None,
         }
     }
 
@@ -225,6 +234,18 @@ mod tests {
         assert_eq!(lru.get(&4), None);
         assert_eq!(lru.get(&5), Some(&"five"));
         assert_eq!(lru.get(&6), Some(&"six"));
+    }
+
+    #[test]
+    fn test_remove() {
+        let mut lru = Lru::<i32, &str>::new(3).unwrap();
+        assert!(lru.set(1, "one").is_none());
+        assert!(lru.set(2, "two").is_none());
+        assert!(lru.set(3, "three").is_none());
+
+        assert_eq!(lru.remove(&2), Some("two"));
+        assert_eq!(lru.get(&2), None);
+        assert_eq!(lru.remove(&2), None);
     }
 
     #[test]

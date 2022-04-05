@@ -111,12 +111,12 @@ All strings stored with fixed 256 bytes alignment, that's why there is bunch of 
   - ✓ rename column
   - ✓ add column
   - ✓ drop column
-- alter table execution
+- ✓ alter table execution
   - ✓ rename table
   - ✓ rename column
   - ✓ add column
   - ✓ drop column
-- implement vacuum metacommand or something like that
+- ✓ implement vacuum metacommand or something like that
 - add .create/.drop metacommand
 - add .connect/.close metacommands
 - implement primary constraint (may be just a primary key flag, no general constraints)
@@ -129,6 +129,7 @@ All strings stored with fixed 256 bytes alignment, that's why there is bunch of 
 - implement limit
 - implement joins
 - make table recreation incremental (insead of full select from old table)
+- subconditions (AND with combinations)
 - allow to store strings with top limit less than 255 symbols (which will take less space)
 - think of calculating row cell offset via null bitmask, so null cells won't occupy space on disk
 - WAL

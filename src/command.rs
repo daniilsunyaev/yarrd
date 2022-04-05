@@ -69,15 +69,22 @@ pub enum Command {
         table_name: SqlValue,
         column_name: SqlValue,
     },
+    VacuumTable {
+        table_name: SqlValue,
+    },
     Void,
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use std::fs;
+
     use crate::database::Database;
     use crate::cmp_operator::CmpOperator;
     use crate::temp_file::TempFile;
+    use crate::pager::page::PAGE_SIZE;
 
     #[test]
     fn create_and_drop_table() {
@@ -368,6 +375,73 @@ mod tests {
         };
 
         assert!(database.execute(drop_table_column).is_ok());
+    }
+
+    #[test]
+    fn create_table_insert_delete_and_vacuum() {
+        let (db_file, mut database) = open_test_database();
+        let create_table = Command::CreateTable {
+            table_name: SqlValue::Identificator("users".to_string()),
+            columns: vec![
+                ColumnDefinition {
+                    name: SqlValue::Identificator("id".to_string()),
+                    kind: ColumnType::Integer,
+                },
+                ColumnDefinition {
+                    name: SqlValue::Identificator("name".to_string()),
+                    kind: ColumnType::String,
+                },
+            ],
+        };
+        // row size is 1 + 8 + 256 = 265 bytes, i.e. we can fit 15 rows per page
+
+        assert!(database.execute(create_table).is_ok());
+
+        for id in 0..31 {
+            let insert_into_table = Command::InsertInto {
+                table_name: SqlValue::Identificator("users".to_string()),
+                column_names: Some(vec![SqlValue::Identificator("id".to_string())]),
+                values: vec![SqlValue::Integer(id)],
+            };
+            let insert_into_table_result = database.execute(insert_into_table);
+            assert!(insert_into_table_result.is_ok());
+        }
+        let mut users_table_path = db_file.temp_dir_path.clone();
+        users_table_path.push("users.table");
+
+        let delete_from_table = Command::Delete {
+            table_name: SqlValue::Identificator("users".to_string()),
+            where_clause: Some(WhereClause {
+                left_value: SqlValue::String("id".to_string()),
+                right_value: SqlValue::Integer(1),
+                operator: CmpOperator::Equals,
+            }),
+        };
+        let delete_from_table_result = database.execute(delete_from_table);
+        assert!(delete_from_table_result.is_ok());
+        assert_eq!(fs::metadata(users_table_path.as_path()).unwrap().len(), 3 * PAGE_SIZE as u64);
+
+        let vacuum_table = Command::VacuumTable {
+            table_name: SqlValue::Identificator("users".to_string()),
+        };
+        assert!(database.execute(vacuum_table).is_ok());
+        assert_eq!(fs::metadata(users_table_path.as_path()).unwrap().len(), 2 * PAGE_SIZE as u64);
+
+        let delete_from_table = Command::Delete {
+            table_name: SqlValue::Identificator("users".to_string()),
+            where_clause: Some(WhereClause {
+                left_value: SqlValue::String("id".to_string()),
+                right_value: SqlValue::Integer(15),
+                operator: CmpOperator::LessEquals,
+            }),
+        };
+        let delete_from_table_result = database.execute(delete_from_table);
+        assert!(delete_from_table_result.is_ok());
+        let vacuum_table = Command::VacuumTable {
+            table_name: SqlValue::Identificator("users".to_string()),
+        };
+        assert!(database.execute(vacuum_table).is_ok());
+        assert_eq!(fs::metadata(users_table_path.as_path()).unwrap().len(), PAGE_SIZE as u64);
     }
 
     fn open_test_database() -> (TempFile, Database) {
