@@ -133,6 +133,8 @@ All strings stored with fixed 256 bytes alignment, that's why there is bunch of 
 - allow to store strings with top limit less than 255 symbols (which will take less space)
 - think of calculating row cell offset via null bitmask, so null cells won't occupy space on disk
 - WAL
+- think of adding "cascade" file manager to easily rollback changes if failed on some step
 - handle errors on db close and flush
 - restore from journal
 - transactions
+- think of metalexer
