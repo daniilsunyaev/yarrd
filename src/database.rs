@@ -45,6 +45,41 @@ impl Database {
         Ok(Self { tables, database_filepath: PathBuf::from(database_filepath), tables_dir })
     }
 
+    pub fn create(database_filepath: &Path, tables_dir_path: &Path) -> Result<(), MetaCommandError> {
+        let tables_dir = PathBuf::from(tables_dir_path);
+        let database_filepath = PathBuf::from(database_filepath);
+        let mut need_to_create_tables_dir = true;
+
+        if database_filepath.exists() {
+            return Err(MetaCommandError::DatabaseFileAlreadyExist(database_filepath));
+        } else if tables_dir.exists() {
+            need_to_create_tables_dir = false;
+        }
+
+        let mut database_file = File::create(database_filepath.clone())?;
+
+        if need_to_create_tables_dir {
+            match fs::create_dir(tables_dir.clone()) {
+                Err(create_tables_dir_error) => {
+                    fs::remove_file(database_filepath.as_path())
+                        .unwrap_or_else(|_| panic!(
+                                "failed to create tables dir: {}, failed to remove database file '{}', try to remove it manually",
+                                create_tables_dir_error, database_filepath.to_str().unwrap()
+                            ));
+                    return Err(MetaCommandError::IoError(create_tables_dir_error))
+
+                },
+                Ok(()) => { },
+            }
+        }
+
+        write!(database_file, "{}\n", tables_dir.into_os_string().into_string().unwrap());
+        // ideally we should check if it is succesfull, should handle in "cascade" file
+        // manager
+
+        Ok(())
+    }
+
     fn parse_schema_line(tables_dir: &Path, table_definition_line: &str) -> Result<Table, MetaCommandError> {
         let mut word_iter = table_definition_line.split_whitespace();
         let table_name = word_iter.next()

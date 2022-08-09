@@ -2,10 +2,6 @@ use crate::table::ColumnType;
 use crate::lexer::SqlValue;
 use crate::where_clause::WhereClause;
 
-pub enum MetaCommand {
-    Exit,
-}
-
 #[derive(Debug)]
 pub enum SelectColumnName {
     Name(SqlValue),

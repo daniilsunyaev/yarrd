@@ -1,4 +1,8 @@
-use crate::command::{Command, MetaCommand};
+use std::path::PathBuf;
+
+use crate::command::Command;
+use crate::meta_command::MetaCommand;
+use crate::meta_command_error::MetaCommandError;
 use crate::lexer::Token;
 use crate::parser::error::ParserError;
 use create::parse_create_statement;
@@ -47,15 +51,38 @@ where
     }
 }
 
-pub fn parse_meta_command(input: &str) -> Result<Option<MetaCommand>, ParserError> {
+pub fn parse_meta_command(input: &str) -> MetaCommand {
     if input.starts_with('.') {
+        if input.starts_with(".createdb") {
+            match parse_createdb(input) {
+                Ok(createdb_meta_command) => return createdb_meta_command,
+                Err(error) => return MetaCommand::MetacommandWithWrongArgs(MetaCommandError::ParseError(error.to_string())),
+            }
+        }
+
         match input {
-            ".exit" | ".quit" => Ok(Some(MetaCommand::Exit)),
-            _ => Err(ParserError::UnknownMetaCommand(input)),
+            ".exit" | ".quit" => MetaCommand::Exit,
+            _ => MetaCommand::Unknown(input.to_string()),
         }
     } else {
-        Ok(None)
+        MetaCommand::Void
     }
+}
+
+pub fn parse_createdb(input: &str) -> Result<MetaCommand, ParserError> {
+    let mut input_iterator = input.splitn(3, ' ');
+    input_iterator.next(); // skip ".createdb"
+
+    let db_path_str = input_iterator.next().ok_or(ParserError::DatabaseNameMissing)?;
+    let db_path = PathBuf::from(db_path_str);
+
+    let tables_dir_path_str = match input_iterator.next() {
+        Some(string) => string.to_string(),
+        None => format!("./{}_tables/", db_path.file_name().unwrap().to_str().unwrap()), // TODO: use db file path, not '.'
+    };
+    let tables_dir = PathBuf::from(tables_dir_path_str);
+
+    Ok(MetaCommand::Createdb { db_path, tables_dir_path: tables_dir })
 }
 
 #[cfg(test)]
@@ -246,5 +273,50 @@ mod tests {
            ];
 
         assert!(parse_statement(input.iter()).is_ok());
+    }
+
+    #[test]
+    fn exit() {
+        assert!(matches!(parse_meta_command(".exit"), MetaCommand::Exit));
+        assert!(matches!(parse_meta_command(".quit"), MetaCommand::Exit));
+    }
+
+    #[test]
+    fn void() {
+        assert!(matches!(parse_meta_command(""), MetaCommand::Void));
+        assert!(matches!(parse_meta_command("select"), MetaCommand::Void));
+        assert!(matches!(parse_meta_command("foo"), MetaCommand::Void));
+    }
+
+
+    #[test]
+    fn unknown() {
+        assert!(matches!(parse_meta_command(".foo"), MetaCommand::Unknown(_)));
+        assert!(matches!(parse_meta_command("."), MetaCommand::Unknown(_)));
+        assert!(matches!(parse_meta_command(".select"), MetaCommand::Unknown(_)));
+    }
+
+    #[test]
+    fn createdb() {
+        assert!(matches!(
+                    parse_meta_command(".createdb"),
+                    MetaCommand::MetacommandWithWrongArgs(MetaCommandError::ParseError(_))
+                ));
+
+        match parse_meta_command(".createdb foo") {
+            MetaCommand::Createdb { db_path, tables_dir_path } => {
+                assert_eq!(db_path, PathBuf::from("foo"));
+                assert_eq!(tables_dir_path, PathBuf::from("./foo_tables"));
+            },
+            _ => panic!("Expected '.createdb foo' to be parsed to Createdb"),
+        }
+
+        match parse_meta_command(".createdb foo ./bar") {
+            MetaCommand::Createdb { db_path, tables_dir_path } => {
+                assert_eq!(db_path, PathBuf::from("foo"));
+                assert_eq!(tables_dir_path, PathBuf::from("./bar"));
+            },
+            _ => panic!("Expected '.createdb foo' to be parsed to Createdb"),
+        }
     }
 }
