@@ -117,7 +117,7 @@ All strings stored with fixed 256 bytes alignment, that's why there is bunch of 
   - ✓ add column
   - ✓ drop column
 - ✓ implement vacuum metacommand or something like that
-- add .create/.drop metacommand
+- ✓ add .create/.drop metacommand
 - add .connect/.close metacommands
 - implement primary constraint (may be just a primary key flag, no general constraints)
 - add row_id
