@@ -73,7 +73,7 @@ impl Database {
             }
         }
 
-        write!(database_file, "{}\n", tables_dir.into_os_string().into_string().unwrap());
+        writeln!(database_file, "{}", tables_dir.into_os_string().into_string().unwrap());
         // ideally we should check if it is succesfull, should handle in "cascade" file
         // manager
 
@@ -84,7 +84,7 @@ impl Database {
         let mut database = Self::from(database_filepath)?;
         let mut table_names = vec![];
 
-        for (table_name, _table) in &database.tables {
+        for table_name in database.tables.keys() {
             table_names.push(SqlValue::Identificator(table_name.to_string()));
         }
         for table_name in table_names {

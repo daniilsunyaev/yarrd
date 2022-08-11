@@ -18,7 +18,7 @@ impl MetaCommand {
             Self::Void => MetaCommandResult::None,
             Self::Exit => MetaCommandResult::Exit,
             Self::MetacommandWithWrongArgs(error) => MetaCommandResult::Err(error),
-            Self::Unknown(input) => MetaCommandResult::Err(MetaCommandError::UnknownCommand(input.to_string())),
+            Self::Unknown(input) => MetaCommandResult::Err(MetaCommandError::UnknownCommand(input)),
             Self::Createdb { db_path, tables_dir_path } => {
                 match Database::create(&db_path, &tables_dir_path) {
                     Ok(()) => MetaCommandResult::Ok,
