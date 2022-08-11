@@ -4,6 +4,7 @@ use std::io;
 use std::path::PathBuf;
 
 use crate::table::error::TableError;
+use crate::execution_error::ExecutionError;
 
 #[derive(Debug)]
 pub enum MetaCommandError {
@@ -15,6 +16,7 @@ pub enum MetaCommandError {
     TableError(TableError),
     ParseError(String),
     UnknownCommand(String),
+    ExecutionError(ExecutionError),
 }
 
 impl fmt::Display for MetaCommandError {
@@ -34,6 +36,7 @@ impl fmt::Display for MetaCommandError {
             Self::TableError(table_error) => table_error.to_string(),
             Self::ParseError(parser_error) => format!("failed to parse metacommand: {}", parser_error),
             Self::UnknownCommand(input) => format!("unknown metacommand: {}", input),
+            Self::ExecutionError(exec_error) => format!("failed to execute metacommand: {}", exec_error),
         };
         write!(f, "{}", message)
     }

@@ -9,6 +9,7 @@ pub enum MetaCommand {
     MetacommandWithWrongArgs(MetaCommandError),
     Exit,
     Createdb { db_path: PathBuf, tables_dir_path: PathBuf },
+    Dropdb(PathBuf),
 }
 
 impl MetaCommand {
@@ -20,6 +21,12 @@ impl MetaCommand {
             Self::Unknown(input) => MetaCommandResult::Err(MetaCommandError::UnknownCommand(input.to_string())),
             Self::Createdb { db_path, tables_dir_path } => {
                 match Database::create(&db_path, &tables_dir_path) {
+                    Ok(()) => MetaCommandResult::Ok,
+                    Err(error) => MetaCommandResult::Err(error),
+                }
+            },
+            Self::Dropdb(db_path) => {
+                match Database::drop(&db_path) {
                     Ok(()) => MetaCommandResult::Ok,
                     Err(error) => MetaCommandResult::Err(error),
                 }
@@ -41,7 +48,7 @@ mod tests {
     use crate::temp_file::TempFile;
 
     #[test]
-    fn create_database() {
+    fn create_drop_database() {
         let (temp_dir, _temp_file) = create_temp_dir();
 
         let create_database = MetaCommand::Createdb {
@@ -53,10 +60,16 @@ mod tests {
 
         let create_database = MetaCommand::Createdb {
             db_path: PathBuf::from(format!("{}/another_new_db", temp_dir.to_str().unwrap())),
-            tables_dir_path: temp_dir,
+            tables_dir_path: temp_dir.clone(),
         };
 
         assert!(matches!(create_database.execute(), MetaCommandResult::Ok));
+
+        let drop_database = MetaCommand::Dropdb(PathBuf::from(format!("{}/nonexistent_db", temp_dir.clone().to_str().unwrap())));
+        assert!(matches!(drop_database.execute(), MetaCommandResult::Err(_)));
+
+        let drop_database = MetaCommand::Dropdb(PathBuf::from(format!("{}/another_new_db", temp_dir.to_str().unwrap())));
+        assert!(matches!(drop_database.execute(), MetaCommandResult::Ok));
     }
 
     fn create_temp_dir() -> (PathBuf, TempFile) {

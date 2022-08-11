@@ -80,6 +80,21 @@ impl Database {
         Ok(())
     }
 
+    pub fn drop(database_filepath: &Path) -> Result<(), MetaCommandError> {
+        let mut database = Self::from(database_filepath)?;
+        let mut table_names = vec![];
+
+        for (table_name, _table) in &database.tables {
+            table_names.push(SqlValue::Identificator(table_name.to_string()));
+        }
+        for table_name in table_names {
+            database.drop_table(table_name).map_err(MetaCommandError::ExecutionError)?;
+        }
+
+        fs::remove_file(database_filepath).map_err(MetaCommandError::IoError)?;
+        Ok(())
+    }
+
     fn parse_schema_line(tables_dir: &Path, table_definition_line: &str) -> Result<Table, MetaCommandError> {
         let mut word_iter = table_definition_line.split_whitespace();
         let table_name = word_iter.next()

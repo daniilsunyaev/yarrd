@@ -58,6 +58,11 @@ pub fn parse_meta_command(input: &str) -> MetaCommand {
                 Ok(createdb_meta_command) => return createdb_meta_command,
                 Err(error) => return MetaCommand::MetacommandWithWrongArgs(MetaCommandError::ParseError(error.to_string())),
             }
+        } else if input.starts_with(".dropdb") {
+            match parse_dropdb(input) {
+                Ok(dropdb_meta_command) => return dropdb_meta_command,
+                Err(error) => return MetaCommand::MetacommandWithWrongArgs(MetaCommandError::ParseError(error.to_string())),
+            }
         }
 
         match input {
@@ -83,6 +88,16 @@ pub fn parse_createdb(input: &str) -> Result<MetaCommand, ParserError> {
     let tables_dir = PathBuf::from(tables_dir_path_str);
 
     Ok(MetaCommand::Createdb { db_path, tables_dir_path: tables_dir })
+}
+
+pub fn parse_dropdb(input: &str) -> Result<MetaCommand, ParserError> {
+    let mut input_iterator = input.splitn(2, ' ');
+    input_iterator.next(); // skip ".dropdb"
+
+    let db_path_str = input_iterator.next().ok_or(ParserError::DatabaseNameMissing)?;
+    let db_path = PathBuf::from(db_path_str);
+
+    Ok(MetaCommand::Dropdb(db_path))
 }
 
 #[cfg(test)]
@@ -317,6 +332,21 @@ mod tests {
                 assert_eq!(tables_dir_path, PathBuf::from("./bar"));
             },
             _ => panic!("Expected '.createdb foo' to be parsed to Createdb"),
+        }
+    }
+
+    #[test]
+    fn dropdb() {
+        assert!(matches!(
+                    parse_meta_command(".dropdb"),
+                    MetaCommand::MetacommandWithWrongArgs(MetaCommandError::ParseError(_))
+                ));
+
+        match parse_meta_command(".dropdb foo") {
+            MetaCommand::Dropdb(db_path) => {
+                assert_eq!(db_path, PathBuf::from("foo"));
+            },
+            _ => panic!("Expected '.dropdb foo' to be parsed to Createdb"),
         }
     }
 }
