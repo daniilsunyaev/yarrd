@@ -73,7 +73,7 @@ impl Database {
             }
         }
 
-        writeln!(database_file, "{}", tables_dir.into_os_string().into_string().unwrap());
+        writeln!(database_file, "{}", tables_dir.display())?;
         // ideally we should check if it is succesfull, should handle in "cascade" file
         // manager
 

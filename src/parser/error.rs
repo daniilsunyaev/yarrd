@@ -7,6 +7,7 @@ use crate::parser::Token;
 pub enum ParserError<'a> {
     UnknownCommand(&'a Token),
     DatabaseNameMissing,
+    CouldNotParseDbFilename(&'a str),
     ExcessTokens(Vec<&'a Token>),
     CreateTypeMissing,
     CreateTypeUnknown(&'a Token),
@@ -60,6 +61,8 @@ impl<'a> fmt::Display for ParserError<'a> {
         let message = match self {
             Self::UnknownCommand(command) => format!("unknown command '{}'", command),
             Self::DatabaseNameMissing => "database name is not provided".to_string(),
+            Self::CouldNotParseDbFilename(full_path_buf) =>
+                format!("could not extract database filename from {}", full_path_buf),
             Self::ExcessTokens(tokens) =>
                 format!("statement is correct, but contains excess tokens {:?}",
                         tokens.iter().map(|t| t.to_string()).collect::<Vec<String>>()),
