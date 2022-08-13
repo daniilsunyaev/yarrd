@@ -82,9 +82,8 @@ pub fn parse_createdb(input: &str) -> Result<MetaCommand, ParserError> {
     let mut input_iterator = input.splitn(3, ' ');
     input_iterator.next(); // skip ".createdb"
 
-    let db_path_str = pathify(input_iterator.next().ok_or(ParserError::DatabaseNameMissing)?);
+    let db_path = pathify(input_iterator.next().ok_or(ParserError::DatabaseNameMissing)?);
 
-    let db_path = PathBuf::from(&db_path_str);
     let db_file_name = db_path
         .file_name().ok_or(ParserError::CouldNotParseDbFilename(input))?
         .to_str().ok_or(ParserError::CouldNotParseDbFilename(input))?;
@@ -92,27 +91,27 @@ pub fn parse_createdb(input: &str) -> Result<MetaCommand, ParserError> {
     let db_dir_path = db_path.parent()
         .ok_or(ParserError::CouldNotParseDbFilename(input))?;
 
-    let tables_dir_path_str = match input_iterator.next() {
+    let tables_dir = match input_iterator.next() {
         Some(string) => pathify(string),
-        None => format!("{}/{}{}",
-                        db_dir_path.display(),
-                        db_file_name,
-                        DEFAULT_TABLES_DIR_SUFFIX),
+        None => {
+            let mut tables_dir_path = PathBuf::from(db_dir_path);
+            tables_dir_path.push(format!("{}{}", db_file_name, DEFAULT_TABLES_DIR_SUFFIX));
+            tables_dir_path
+        }
     };
-    let tables_dir = PathBuf::from(tables_dir_path_str);
 
     Ok(MetaCommand::Createdb { db_path, tables_dir_path: tables_dir })
 }
 
-fn pathify(string: &str) -> String {
+fn pathify(string: &str) -> PathBuf {
     let input_path = Path::new(string);
 
     if input_path.is_absolute() || input_path.starts_with(CURRENT_FOLDER_PATH) {
-        string.to_string()
+        PathBuf::from(string)
     } else {
         let mut path = PathBuf::from(DEFAULT_PATH);
         path.push(string);
-        path.display().to_string()
+        path
     }
 }
 
