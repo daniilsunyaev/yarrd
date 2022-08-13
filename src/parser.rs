@@ -26,6 +26,10 @@ mod vacuum;
 mod error;
 mod shared;
 
+const DEFAULT_PATH: &str = ".";
+const CURRENT_FOLDER_PATH: &str = ".";
+const DEFAULT_TABLES_DIR_SUFFIX: &str = "_tables";
+
 pub fn parse_statement<'a, I>(mut token: I) -> Result<Command, ParserError<'a>>
 where
     I: Iterator<Item = &'a Token> + std::fmt::Debug,
@@ -75,16 +79,10 @@ pub fn parse_meta_command(input: &str) -> MetaCommand {
 }
 
 pub fn parse_createdb(input: &str) -> Result<MetaCommand, ParserError> {
-    let current_dir = PathBuf::from("./");
-
     let mut input_iterator = input.splitn(3, ' ');
     input_iterator.next(); // skip ".createdb"
 
-    let db_path_str =
-        pathify(
-            input_iterator.next().ok_or(ParserError::DatabaseNameMissing)?,
-            &current_dir
-        );
+    let db_path_str = pathify(input_iterator.next().ok_or(ParserError::DatabaseNameMissing)?);
 
     let db_path = PathBuf::from(&db_path_str);
     let db_file_name = db_path
@@ -95,21 +93,26 @@ pub fn parse_createdb(input: &str) -> Result<MetaCommand, ParserError> {
         .ok_or(ParserError::CouldNotParseDbFilename(input))?;
 
     let tables_dir_path_str = match input_iterator.next() {
-        Some(string) => pathify(string, &current_dir),
-        None => format!("{}/{}_tables/",
+        Some(string) => pathify(string),
+        None => format!("{}/{}{}",
                         db_dir_path.display(),
-                        db_file_name),
+                        db_file_name,
+                        DEFAULT_TABLES_DIR_SUFFIX),
     };
     let tables_dir = PathBuf::from(tables_dir_path_str);
 
     Ok(MetaCommand::Createdb { db_path, tables_dir_path: tables_dir })
 }
 
-fn pathify(string: &str, current_dir: &Path) -> String {
-    if Path::new(string).is_absolute() || string.starts_with('.') {
+fn pathify(string: &str) -> String {
+    let input_path = Path::new(string);
+
+    if input_path.is_absolute() || input_path.starts_with(CURRENT_FOLDER_PATH) {
         string.to_string()
     } else {
-        format!("{}{}", current_dir.display(), string)
+        let mut path = PathBuf::from(DEFAULT_PATH);
+        path.push(string);
+        path.display().to_string()
     }
 }
 
@@ -357,6 +360,14 @@ mod tests {
             _ => panic!("Expected '.createdb foo' to be parsed to Createdb"),
         }
 
+        match parse_meta_command(".createdb ./some_path/foo ./foo/bar") {
+            MetaCommand::Createdb { db_path, tables_dir_path } => {
+                assert_eq!(db_path, PathBuf::from("./some_path/foo"));
+                assert_eq!(tables_dir_path, PathBuf::from("./foo/bar"));
+            },
+            _ => panic!("Expected '.createdb foo' to be parsed to Createdb"),
+        }
+
         match parse_meta_command(".createdb foo bar") {
             MetaCommand::Createdb { db_path, tables_dir_path } => {
                 assert_eq!(db_path, PathBuf::from("./foo"));
@@ -365,9 +376,9 @@ mod tests {
             _ => panic!("Expected '.createdb foo' to be parsed to Createdb"),
         }
 
-        match parse_meta_command(".createdb foo /some_path/bar") {
+        match parse_meta_command(".createdb .foo /some_path/bar") {
             MetaCommand::Createdb { db_path, tables_dir_path } => {
-                assert_eq!(db_path, PathBuf::from("./foo"));
+                assert_eq!(db_path, PathBuf::from("./.foo"));
                 assert_eq!(tables_dir_path, PathBuf::from("/some_path/bar"));
             },
             _ => panic!("Expected '.createdb foo' to be parsed to Createdb"),

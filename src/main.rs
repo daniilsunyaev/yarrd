@@ -55,29 +55,31 @@ fn run() -> Result<(), MetaCommandError> {
                 println!("error executing meta command: {}", error);
                 continue
             },
-            MetaCommandResult::None => {
-                let tokens = match lexer::to_tokens(input) {
-                    Ok(tokens) => tokens,
-                    Err(message) => {
-                        println!("cannot parse statement: {}", message);
-                        continue
-                    },
-                };
-
-                match parser::parse_statement(tokens.iter()) {
-                    Err(error) => println!("error parsing statement: {}", error),
-                    Ok(command) => {
-                        match database.execute(command) {
-                            Ok(result) => println!("{:?}", result),
-                            Err(message) => println!("cannot execute statement: {}", message),
-                        }
-                    },
-                }
-            },
+            MetaCommandResult::None => parse_and_execute_sql_statement(input, &mut database),
         };
     };
     database.close();
     Ok(())
+}
+
+fn parse_and_execute_sql_statement(input: &str, database: &mut Database) {
+    let tokens = match lexer::to_tokens(input) {
+        Ok(tokens) => tokens,
+        Err(message) => {
+            println!("cannot parse statement: {}", message);
+            return
+        },
+    };
+
+    match parser::parse_statement(tokens.iter()) {
+        Err(error) => println!("error parsing statement: {}", error),
+        Ok(command) => {
+            match database.execute(command) {
+                Ok(result) => println!("{:?}", result),
+                Err(message) => println!("cannot execute statement: {}", message),
+            }
+        },
+    }
 }
 
 fn print_prompt() {

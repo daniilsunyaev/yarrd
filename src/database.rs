@@ -91,6 +91,7 @@ impl Database {
             database.drop_table(table_name).map_err(MetaCommandError::ExecutionError)?;
         }
 
+        // TODO: use cascade file manager to panic from unrecoverable errors with correct message
         fs::remove_file(database_filepath).map_err(MetaCommandError::IoError)?;
         Ok(())
     }
