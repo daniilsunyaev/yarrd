@@ -1,13 +1,14 @@
 use std::io::{self, Write};
 use std::path::Path;
 
-use crate::command::MetaCommand;
+use crate::meta_command::MetaCommandResult;
 use crate::database::Database;
 use crate::meta_command_error::MetaCommandError;
 
 mod table;
 mod lexer;
 mod command;
+mod meta_command;
 mod parser;
 mod database;
 mod row; // TODO: maybe put it inside database or table?
@@ -44,35 +45,41 @@ fn run() -> Result<(), MetaCommandError> {
         stdin.read_line(&mut buffer)?;
         let input = buffer.trim();
 
-        match parser::parse_meta_command(input) {
-            Ok(Some(MetaCommand::Exit)) => break,
-            Ok(None) => { },
-            Err(message) => {
-                println!("error parsing meta command: {}", message);
+        match parser::parse_meta_command(input).execute() {
+            MetaCommandResult::Exit => break,
+            MetaCommandResult::Ok => {
+                println!("OK");
                 continue
             },
-        }
-
-        let tokens = match lexer::to_tokens(input) {
-            Ok(tokens) => tokens,
-            Err(message) => {
-                println!("cannot parse statement: {}", message);
+            MetaCommandResult::Err(error) => {
+                println!("error executing meta command: {}", error);
                 continue
-            }
+            },
+            MetaCommandResult::None => parse_and_execute_sql_statement(input, &mut database),
         };
-
-        match parser::parse_statement(tokens.iter()) {
-            Err(error) => println!("error parsing statement: {}", error),
-            Ok(command) => {
-                match database.execute(command) {
-                    Ok(result) => println!("{:?}", result),
-                    Err(message) => println!("cannot execute statement: {}", message),
-                }
-            },
-        }
     };
     database.close();
     Ok(())
+}
+
+fn parse_and_execute_sql_statement(input: &str, database: &mut Database) {
+    let tokens = match lexer::to_tokens(input) {
+        Ok(tokens) => tokens,
+        Err(message) => {
+            println!("cannot parse statement: {}", message);
+            return
+        },
+    };
+
+    match parser::parse_statement(tokens.iter()) {
+        Err(error) => println!("error parsing statement: {}", error),
+        Ok(command) => {
+            match database.execute(command) {
+                Ok(result) => println!("{:?}", result),
+                Err(message) => println!("cannot execute statement: {}", message),
+            }
+        },
+    }
 }
 
 fn print_prompt() {

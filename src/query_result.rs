@@ -19,6 +19,7 @@ impl QueryResult {
         self.rows.last_mut().unwrap()
     }
 
+    #[allow(dead_code)]
     pub fn len(&self) -> usize {
         self.rows.len()
     }

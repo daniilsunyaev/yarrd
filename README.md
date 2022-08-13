@@ -117,8 +117,9 @@ All strings stored with fixed 256 bytes alignment, that's why there is bunch of 
   - ✓ add column
   - ✓ drop column
 - ✓ implement vacuum metacommand or something like that
-- add .create/.drop metacommand
+- ✓ add .create/.drop metacommand
 - add .connect/.close metacommands
+- add metacommands docs
 - implement primary constraint (may be just a primary key flag, no general constraints)
 - add row_id
 - introduce NOT
@@ -133,6 +134,8 @@ All strings stored with fixed 256 bytes alignment, that's why there is bunch of 
 - allow to store strings with top limit less than 255 symbols (which will take less space)
 - think of calculating row cell offset via null bitmask, so null cells won't occupy space on disk
 - WAL
+- think of adding "cascade" file manager to easily rollback changes if failed on some step
 - handle errors on db close and flush
 - restore from journal
 - transactions
+- think of metalexer

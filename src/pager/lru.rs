@@ -56,6 +56,7 @@ impl<K: Eq + Hash + Copy, V> Lru<K, V> {
         Ok(Lru { use_sequence, key_location, current: 0 })
     }
 
+    #[allow(dead_code)]
     pub fn get(&mut self, key: &K) -> Option<&V> {
         match self.key_location.get(key) {
             Some(&key_index) => {

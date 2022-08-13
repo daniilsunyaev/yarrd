@@ -45,6 +45,54 @@ impl Database {
         Ok(Self { tables, database_filepath: PathBuf::from(database_filepath), tables_dir })
     }
 
+    pub fn create(database_filepath: &Path, tables_dir_path: &Path) -> Result<(), MetaCommandError> {
+        let tables_dir = PathBuf::from(tables_dir_path);
+        let database_filepath = PathBuf::from(database_filepath);
+
+        if database_filepath.exists() {
+            return Err(MetaCommandError::DatabaseFileAlreadyExist(database_filepath));
+        }
+
+        let mut database_file = File::create(database_filepath.clone())?;
+
+        if !tables_dir.exists() {
+            match fs::create_dir(tables_dir.clone()) {
+                Err(create_tables_dir_error) => {
+                    fs::remove_file(database_filepath.as_path())
+                        .unwrap_or_else(|_| panic!(
+                                "failed to create tables dir: {}, failed to remove database file '{}', try to remove it manually",
+                                create_tables_dir_error, database_filepath.to_str().unwrap()
+                            ));
+                    return Err(MetaCommandError::IoError(create_tables_dir_error))
+
+                },
+                Ok(()) => { },
+            }
+        }
+
+        writeln!(database_file, "{}", tables_dir.display())?;
+        // ideally we should check if it is succesfull, should handle in "cascade" file
+        // manager
+
+        Ok(())
+    }
+
+    pub fn drop(database_filepath: &Path) -> Result<(), MetaCommandError> {
+        let mut database = Self::from(database_filepath)?;
+        let mut table_names = vec![];
+
+        for table_name in database.tables.keys() {
+            table_names.push(SqlValue::Identificator(table_name.to_string()));
+        }
+        for table_name in table_names {
+            database.drop_table(table_name).map_err(MetaCommandError::ExecutionError)?;
+        }
+
+        // TODO: use cascade file manager to panic from unrecoverable errors with correct message
+        fs::remove_file(database_filepath).map_err(MetaCommandError::IoError)?;
+        Ok(())
+    }
+
     fn parse_schema_line(tables_dir: &Path, table_definition_line: &str) -> Result<Table, MetaCommandError> {
         let mut word_iter = table_definition_line.split_whitespace();
         let table_name = word_iter.next()
