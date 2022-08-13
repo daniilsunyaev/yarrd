@@ -339,57 +339,32 @@ mod tests {
 
     #[test]
     fn createdb() {
+        let valid_expectations = vec![
+            (".createdb foo", ("./foo", "./foo_tables")),
+            (".createdb foo ./bar", ("./foo", "./bar")),
+            (".createdb ./some_path/foo ./foo/bar", ("./some_path/foo", "./foo/bar")),
+            (".createdb foo bar", ("./foo", "./bar")),
+            (".createdb .foo /some_path/bar", ("./.foo", "/some_path/bar")),
+            (".createdb /some_abs_path/foo bar", ("/some_abs_path/foo", "./bar")),
+        ];
+
         assert!(matches!(
                     parse_meta_command(".createdb"),
                     MetaCommand::MetacommandWithWrongArgs(MetaCommandError::ParseError(_))
                 ));
 
-        match parse_meta_command(".createdb foo") {
-            MetaCommand::Createdb { db_path, tables_dir_path } => {
-                assert_eq!(db_path, PathBuf::from("./foo"));
-                assert_eq!(tables_dir_path, PathBuf::from("./foo_tables"));
-            },
-            _ => panic!("Expected '.createdb foo' to be parsed to Createdb"),
+        for expectation in valid_expectations {
+            assert_createdb(expectation.0, expectation.1.0, expectation.1.1)
         }
+    }
 
-        match parse_meta_command(".createdb foo ./bar") {
+    fn assert_createdb(input: &str, metacommand_db_path: &str, metacommand_tables_dir_path: &str) {
+        match parse_meta_command(input) {
             MetaCommand::Createdb { db_path, tables_dir_path } => {
-                assert_eq!(db_path, PathBuf::from("./foo"));
-                assert_eq!(tables_dir_path, PathBuf::from("./bar"));
+                assert_eq!(db_path, PathBuf::from(metacommand_db_path));
+                assert_eq!(tables_dir_path, PathBuf::from(metacommand_tables_dir_path));
             },
-            _ => panic!("Expected '.createdb foo' to be parsed to Createdb"),
-        }
-
-        match parse_meta_command(".createdb ./some_path/foo ./foo/bar") {
-            MetaCommand::Createdb { db_path, tables_dir_path } => {
-                assert_eq!(db_path, PathBuf::from("./some_path/foo"));
-                assert_eq!(tables_dir_path, PathBuf::from("./foo/bar"));
-            },
-            _ => panic!("Expected '.createdb foo' to be parsed to Createdb"),
-        }
-
-        match parse_meta_command(".createdb foo bar") {
-            MetaCommand::Createdb { db_path, tables_dir_path } => {
-                assert_eq!(db_path, PathBuf::from("./foo"));
-                assert_eq!(tables_dir_path, PathBuf::from("./bar"));
-            },
-            _ => panic!("Expected '.createdb foo' to be parsed to Createdb"),
-        }
-
-        match parse_meta_command(".createdb .foo /some_path/bar") {
-            MetaCommand::Createdb { db_path, tables_dir_path } => {
-                assert_eq!(db_path, PathBuf::from("./.foo"));
-                assert_eq!(tables_dir_path, PathBuf::from("/some_path/bar"));
-            },
-            _ => panic!("Expected '.createdb foo' to be parsed to Createdb"),
-        }
-
-        match parse_meta_command(".createdb /some_abs_path/foo bar") {
-            MetaCommand::Createdb { db_path, tables_dir_path } => {
-                assert_eq!(db_path, PathBuf::from("/some_abs_path/foo"));
-                assert_eq!(tables_dir_path, PathBuf::from("./bar"));
-            },
-            _ => panic!("Expected '.createdb foo' to be parsed to Createdb"),
+            _ => panic!("Expected '{}' to be parsed to Createdb", input),
         }
     }
 

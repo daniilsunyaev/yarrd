@@ -48,17 +48,14 @@ impl Database {
     pub fn create(database_filepath: &Path, tables_dir_path: &Path) -> Result<(), MetaCommandError> {
         let tables_dir = PathBuf::from(tables_dir_path);
         let database_filepath = PathBuf::from(database_filepath);
-        let mut need_to_create_tables_dir = true;
 
         if database_filepath.exists() {
             return Err(MetaCommandError::DatabaseFileAlreadyExist(database_filepath));
-        } else if tables_dir.exists() {
-            need_to_create_tables_dir = false;
         }
 
         let mut database_file = File::create(database_filepath.clone())?;
 
-        if need_to_create_tables_dir {
+        if !tables_dir.exists() {
             match fs::create_dir(tables_dir.clone()) {
                 Err(create_tables_dir_error) => {
                     fs::remove_file(database_filepath.as_path())
