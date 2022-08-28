@@ -67,9 +67,15 @@ pub fn parse_meta_command(input: &str) -> MetaCommand {
                 Ok(dropdb_meta_command) => return dropdb_meta_command,
                 Err(error) => return MetaCommand::MetacommandWithWrongArgs(MetaCommandError::ParseError(error.to_string())),
             }
+        } else if input.starts_with(".connect") {
+            match parse_connect(input) {
+                Ok(connect_meta_command) => return connect_meta_command,
+                Err(error) => return MetaCommand::MetacommandWithWrongArgs(MetaCommandError::ParseError(error.to_string())),
+            }
         }
 
-        match input {
+        match input.trim() {
+            ".close" => MetaCommand::CloseConnection,
             ".exit" | ".quit" => MetaCommand::Exit,
             _ => MetaCommand::Unknown(input.to_string()),
         }
@@ -82,7 +88,7 @@ pub fn parse_createdb(input: &str) -> Result<MetaCommand, ParserError> {
     let mut input_iterator = input.splitn(3, ' ');
     input_iterator.next(); // skip ".createdb"
 
-    let db_path = pathify(input_iterator.next().ok_or(ParserError::DatabaseNameMissing)?);
+    let db_path = pathify(input_iterator.next().ok_or(ParserError::DatabasePathMissing)?);
 
     let db_file_name = db_path
         .file_name().ok_or(ParserError::CouldNotParseDbFilename(input))?
@@ -103,6 +109,26 @@ pub fn parse_createdb(input: &str) -> Result<MetaCommand, ParserError> {
     Ok(MetaCommand::Createdb { db_path, tables_dir_path: tables_dir })
 }
 
+pub fn parse_dropdb(input: &str) -> Result<MetaCommand, ParserError> {
+    let mut input_iterator = input.splitn(2, ' ');
+    input_iterator.next(); // skip ".dropdb"
+
+    let db_path_str = input_iterator.next().ok_or(ParserError::DatabasePathMissing)?;
+    let db_path = PathBuf::from(db_path_str);
+
+    Ok(MetaCommand::Dropdb(db_path))
+}
+
+pub fn parse_connect(input: &str) -> Result<MetaCommand, ParserError> {
+    let mut input_iterator = input.splitn(2, ' ');
+    input_iterator.next(); // skip ".connect"
+
+    let db_path_str = input_iterator.next().ok_or(ParserError::DatabasePathMissing)?;
+    let db_path = PathBuf::from(db_path_str);
+
+    Ok(MetaCommand::Connect(db_path))
+}
+
 fn pathify(string: &str) -> PathBuf {
     let input_path = Path::new(string);
 
@@ -113,16 +139,6 @@ fn pathify(string: &str) -> PathBuf {
         path.push(string);
         path
     }
-}
-
-pub fn parse_dropdb(input: &str) -> Result<MetaCommand, ParserError> {
-    let mut input_iterator = input.splitn(2, ' ');
-    input_iterator.next(); // skip ".dropdb"
-
-    let db_path_str = input_iterator.next().ok_or(ParserError::DatabaseNameMissing)?;
-    let db_path = PathBuf::from(db_path_str);
-
-    Ok(MetaCommand::Dropdb(db_path))
 }
 
 #[cfg(test)]
@@ -379,6 +395,28 @@ mod tests {
                 assert_eq!(db_path, PathBuf::from("foo"));
             },
             _ => panic!("Expected '.dropdb foo' to be parsed to Createdb"),
+        }
+    }
+
+    #[test]
+    fn connect() {
+        assert!(matches!(
+                    parse_meta_command(".connect"),
+                    MetaCommand::MetacommandWithWrongArgs(MetaCommandError::ParseError(_))
+                ));
+
+        match parse_meta_command(".connect foo") {
+            MetaCommand::Connect(db_path) => {
+                assert_eq!(db_path, PathBuf::from("foo"));
+            },
+            _ => panic!("Expected '.connect foo' to be parsed to Createdb"),
+        }
+
+        match parse_meta_command(".connect /foo/bar") {
+            MetaCommand::Connect(db_path) => {
+                assert_eq!(db_path, PathBuf::from("/foo/bar"));
+            },
+            _ => panic!("Expected '.connect /foo/bar' to be parsed to Createdb"),
         }
     }
 }

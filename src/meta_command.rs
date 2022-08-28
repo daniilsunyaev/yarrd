@@ -10,6 +10,8 @@ pub enum MetaCommand {
     Exit,
     Createdb { db_path: PathBuf, tables_dir_path: PathBuf },
     Dropdb(PathBuf),
+    Connect(PathBuf),
+    CloseConnection,
 }
 
 impl MetaCommand {
@@ -30,6 +32,14 @@ impl MetaCommand {
                     Ok(()) => MetaCommandResult::Ok,
                     Err(error) => MetaCommandResult::Err(error),
                 }
+            },
+            Self::Connect(db_path) => {
+                // TODO: implement
+                MetaCommandResult::Ok
+            },
+            Self::CloseConnection => {
+                // TODO: implement
+                MetaCommandResult::Ok
             }
         }
     }
@@ -71,6 +81,8 @@ mod tests {
         let drop_database = MetaCommand::Dropdb(PathBuf::from(format!("{}/another_new_db", temp_dir.to_str().unwrap())));
         assert!(matches!(drop_database.execute(), MetaCommandResult::Ok));
     }
+
+    // TODO: add connect/close tests
 
     fn create_temp_dir() -> (PathBuf, TempFile) {
         let db_file = TempFile::new("dummy").unwrap();
