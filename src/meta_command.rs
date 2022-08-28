@@ -28,18 +28,19 @@ impl MetaCommand {
                 }
             },
             Self::Dropdb(db_path) => {
-                match Database::drop(&db_path) {
+                match Database::drop(&db_path) { // TODO: close connection if active or throw error
                     Ok(()) => MetaCommandResult::Ok,
                     Err(error) => MetaCommandResult::Err(error),
                 }
             },
             Self::Connect(db_path) => {
-                // TODO: implement
-                MetaCommandResult::Ok
+                match Database::from(&db_path) {
+                    Ok(database) => MetaCommandResult::Connection(database),
+                    Err(error) => MetaCommandResult::Err(error),
+                }
             },
             Self::CloseConnection => {
-                // TODO: implement
-                MetaCommandResult::Ok
+                MetaCommandResult::CloseConnectionDirective
             }
         }
     }
@@ -47,6 +48,8 @@ impl MetaCommand {
 
 pub enum MetaCommandResult {
     Ok,
+    Connection(Database),
+    CloseConnectionDirective,
     None,
     Exit,
     Err(MetaCommandError),
@@ -82,7 +85,24 @@ mod tests {
         assert!(matches!(drop_database.execute(), MetaCommandResult::Ok));
     }
 
-    // TODO: add connect/close tests
+    fn create_connect_close_database() {
+        let (temp_dir, _temp_file) = create_temp_dir();
+
+        let db_path = PathBuf::from(format!("{}/new_db", temp_dir.to_str().unwrap()));
+
+        let create_database = MetaCommand::Createdb {
+            db_path: db_path.clone(),
+            tables_dir_path: PathBuf::from(format!("{}/some_tables", temp_dir.to_str().unwrap())),
+        };
+
+        let connect = MetaCommand::Connect(db_path);
+
+        assert!(matches!(connect.execute(), MetaCommandResult::Connection(_)));
+
+        let disconnect = MetaCommand::CloseConnection;
+
+        assert!(matches!(disconnect.execute(), MetaCommandResult::CloseConnectionDirective));
+    }
 
     fn create_temp_dir() -> (PathBuf, TempFile) {
         let db_file = TempFile::new("dummy").unwrap();

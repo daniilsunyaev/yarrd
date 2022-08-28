@@ -35,8 +35,7 @@ fn main() {
 fn run() -> Result<(), MetaCommandError> {
     let mut buffer = String::new();
     let stdin = io::stdin();
-    let path = Path::new("./database.db");
-    let mut database = Database::from(path)?;
+    let mut connected_database: Option<Database> = None;
 
     loop {
         buffer.clear();
@@ -51,14 +50,39 @@ fn run() -> Result<(), MetaCommandError> {
                 println!("OK");
                 continue
             },
+            MetaCommandResult::Connection(database) => {
+                println!("connected to {}", database.name());
+                if let Some(database) = connected_database { // TODO: extract to connection
+                    database.close();
+                    connected_database = None;
+                }
+                connected_database = Some(database);
+                continue
+            },
+            MetaCommandResult::CloseConnectionDirective => {
+                if let Some(database) = connected_database {
+                    database.close();
+                    connected_database = None;
+                }
+                continue
+            }
             MetaCommandResult::Err(error) => {
                 println!("error executing meta command: {}", error);
                 continue
             },
-            MetaCommandResult::None => parse_and_execute_sql_statement(input, &mut database),
+            MetaCommandResult::None => {
+                match connected_database.as_mut() {
+                    Some(database) => parse_and_execute_sql_statement(input, database),
+                    None => println!("cannot exectute statement: no database connected"),
+                }
+            },
         };
     };
-    database.close();
+
+    match connected_database {
+        Some(database) => database.close(),
+        None => {},
+    }
     Ok(())
 }
 
