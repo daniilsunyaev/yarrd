@@ -135,7 +135,7 @@ All strings stored with fixed 256 bytes alignment, that's why there is bunch of 
 - implement limit
 - `insert into users (id) values (1,2)` should not crash but show an error instead
 - implement joins
-- pressing up should restore previouse command
+- pressing up should restore previous command
 - make table recreation incremental (insead of full select from old table)
 - current command should be editable (left and right should reposition input cursor)
 - subconditions (AND with combinations)
@@ -145,6 +145,6 @@ All strings stored with fixed 256 bytes alignment, that's why there is bunch of 
 - think of adding "cascade" file manager to easily rollback changes if failed on some step
 - handle errors on db close and flush
 - restore from journal
-- support non ascii chars
+- support non-ascii chars
 - transactions
 - think of metalexer

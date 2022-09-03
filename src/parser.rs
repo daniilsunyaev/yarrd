@@ -419,4 +419,17 @@ mod tests {
             _ => panic!("Expected '.connect /foo/bar' to be parsed to Createdb"),
         }
     }
+
+    #[test]
+    fn close() {
+        assert!(matches!(
+                    parse_meta_command(".close"),
+                    MetaCommand::CloseConnection
+                ));
+
+        assert!(matches!(
+                    parse_meta_command(".close foo"),
+                    MetaCommand::Unknown(_)
+                ));
+    }
 }
