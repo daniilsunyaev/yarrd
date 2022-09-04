@@ -38,8 +38,8 @@ impl fmt::Display for MetaCommandError {
             Self::ParseError(parser_error) => format!("failed to parse metacommand: {}", parser_error),
             Self::UnknownCommand(input) => format!("unknown metacommand: {}", input),
             Self::ExecutionError(exec_error) => format!("failed to execute metacommand: {}", exec_error),
-            Self::ConnectionPresent => format!("this metacommand cannot be executed while \
-                                               connected to existing database, consider running `.close`")
+            Self::ConnectionPresent => "this metacommand cannot be executed while \
+                                     connected to existing database, consider running `.close`".to_string()
         };
         write!(f, "{}", message)
     }
