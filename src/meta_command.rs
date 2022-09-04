@@ -29,7 +29,11 @@ impl MetaCommand {
                 }
             },
             Self::Dropdb(db_path) => {
-                match Database::drop(&db_path) { // TODO: close connection if active or throw error
+                if connection.is_active() {
+                    return MetaCommandResult::Err(MetaCommandError::ConnectionPresent);
+                }
+
+                match Database::drop(&db_path) {
                     Ok(()) => MetaCommandResult::Ok,
                     Err(error) => MetaCommandResult::Err(error),
                 }
@@ -71,7 +75,7 @@ mod tests {
         };
 
         assert!(matches!(create_database.execute(&mut connection), MetaCommandResult::Ok));
-        assert_eq!(connection.is_empty(), true);
+        assert_eq!(connection.is_active(), false);
 
         let create_database = MetaCommand::Createdb {
             db_path: PathBuf::from(format!("{}/another_new_db", temp_dir.to_str().unwrap())),
@@ -79,15 +83,15 @@ mod tests {
         };
 
         assert!(matches!(create_database.execute(&mut connection), MetaCommandResult::Ok));
-        assert_eq!(connection.is_empty(), true);
+        assert_eq!(connection.is_active(), false);
 
         let drop_database = MetaCommand::Dropdb(PathBuf::from(format!("{}/nonexistent_db", temp_dir.clone().to_str().unwrap())));
         assert!(matches!(drop_database.execute(&mut connection), MetaCommandResult::Err(_)));
-        assert_eq!(connection.is_empty(), true);
+        assert_eq!(connection.is_active(), false);
 
         let drop_database = MetaCommand::Dropdb(PathBuf::from(format!("{}/another_new_db", temp_dir.to_str().unwrap())));
         assert!(matches!(drop_database.execute(&mut connection), MetaCommandResult::Ok));
-        assert_eq!(connection.is_empty(), true);
+        assert_eq!(connection.is_active(), false);
     }
 
     #[test]
@@ -105,12 +109,12 @@ mod tests {
         let connect = MetaCommand::Connect(db_path).execute(&mut connection);
 
         assert!(matches!(connect, MetaCommandResult::Ok));
-        assert_eq!(connection.is_empty(), false);
+        assert_eq!(connection.is_active(), true);
 
         let disconnect = MetaCommand::CloseConnection.execute(&mut connection);
 
         assert!(matches!(disconnect, MetaCommandResult::Ok));
-        assert_eq!(connection.is_empty(), true);
+        assert_eq!(connection.is_active(), false);
     }
 
     fn create_temp_dir() -> (PathBuf, TempFile) {

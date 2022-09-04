@@ -20,15 +20,14 @@ impl Connection {
     }
 
     pub fn close(&mut self) {
-        if let Some(_) = &self.database {
+        if self.database.is_some() {
             let db = std::mem::take(&mut self.database);
             db.unwrap().close();
         }
     }
 
-    #[cfg(test)]
-    pub fn is_empty(&self) -> bool {
-        self.database.is_none()
+    pub fn is_active(&self) -> bool {
+        self.database.is_some()
     }
 
     pub fn get_mut_database(&mut self) -> Option<&mut Database> {

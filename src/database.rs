@@ -93,10 +93,6 @@ impl Database {
         Ok(())
     }
 
-    pub fn name(&self) -> &str {
-        self.database_filepath.file_name().unwrap().to_str().unwrap()
-    }
-
     fn parse_schema_line(tables_dir: &Path, table_definition_line: &str) -> Result<Table, MetaCommandError> {
         let mut word_iter = table_definition_line.split_whitespace();
         let table_name = word_iter.next()
