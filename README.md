@@ -14,6 +14,10 @@ General assumptions:
 ```
 cargo run
 
+yarrd> .createdb database
+
+yarrd> .connect database
+
 yarrd> create table users (id int, name string)
 
 yarrd> insert into users (name, id) values ("john", 3)
@@ -118,18 +122,22 @@ All strings stored with fixed 256 bytes alignment, that's why there is bunch of 
   - ✓ drop column
 - ✓ implement vacuum metacommand or something like that
 - ✓ add .create/.drop metacommand
-- add .connect/.close metacommands
+- ✓ add .connect/.close metacommands
 - add metacommands docs
 - implement primary constraint (may be just a primary key flag, no general constraints)
 - add row_id
 - introduce NOT
+- remove tables dir if it is empty after tables cleanup
 - store hashtable for primary keys at the beginning of file or store those in root database file
 - maybe use peek and rewrite parser in more of decoupeled manner? Try to allow keyword names
 - add table column names -> column offset hashmap
 - add pretty output of queries
 - implement limit
+- `insert into users (id) values (1,2)` should not crash but show an error instead
 - implement joins
+- pressing up should restore previous command
 - make table recreation incremental (insead of full select from old table)
+- current command should be editable (left and right should reposition input cursor)
 - subconditions (AND with combinations)
 - allow to store strings with top limit less than 255 symbols (which will take less space)
 - think of calculating row cell offset via null bitmask, so null cells won't occupy space on disk
@@ -137,5 +145,6 @@ All strings stored with fixed 256 bytes alignment, that's why there is bunch of 
 - think of adding "cascade" file manager to easily rollback changes if failed on some step
 - handle errors on db close and flush
 - restore from journal
+- support non-ascii chars
 - transactions
 - think of metalexer

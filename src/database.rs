@@ -338,7 +338,7 @@ impl Database {
                             "failed to rename {} back to {}: {}, \
                             and was not able to rollback: {},
                             new table {0} needs to be cleaned up manually, \
-                            and replacec with {}",
+                            and replace with {}",
                             target_table_name, temp_new_table_name, rename_error, drop_error, temp_old_table_name)
                           );
                 Err(drop_error)
