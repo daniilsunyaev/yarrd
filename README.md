@@ -9,7 +9,7 @@ General assumptions:
 - sql-like syntax, no subqueries
 - no external dependencies
 
-### Quickstart
+## Quickstart
 
 ```
 cargo run
@@ -60,20 +60,22 @@ here, we have these bytes:
 
 All strings stored with fixed 256 bytes alignment, that's why there is bunch of zeroes.
 
-### Commands Reference
+## Commands Reference
 
-#### Metacommands
+### Metacommands
 
 `.createdb DATABASE_PATH [DATABASE_TABLES_DIR_PATH]`
 
 Create a new database at `DATABASE_PATH`. Path can be relative or absolute.
 No file should exist at given path.
-If `DATABASE_TABLES_DIR_PATH` is given, will place all tables' files into that dir.
+If `DATABASE_TABLES_DIR_PATH` is given, it will place all tables' files into that dir.
 It will create this dir if it is not existing yet. If no path specified, it will use
 database name + `_tables` suffix in current folder as a tables dir.
 
 `.createdb test_app`
+
 `.createdb ~/dev/some_app/dev_app ~/dev/some_app/dev_app/tables`
+
 
 
 `.dropdb DATABASE_PATH`
@@ -85,13 +87,16 @@ This metacommand can only be executed if no database is currently connected.
 `.dropdb test_app`
 
 
+
 `.connect DATABASE_PATH`
 
 Establish connection to database at specified path. Path can be absolute or reative.
 Once executed, all sql statements will be executed on this database.
 
 `.connect dev_app`
+
 `.connect /home/user/tmp/database.db`
+
 
 
 `.close`
@@ -99,24 +104,31 @@ Once executed, all sql statements will be executed on this database.
 Close database connection. All unflushed changes will be recorded to disk.
 
 
-`.exit`
-`.quit`
+
+`.exit` or `.quit`
 
 Close database connection and exit from cmd interface.
 
-### Query commands
+## Query commands
 
 Querying syntax is similar to sql, but have no semicolon at the end.
 
 Supported statemes: `CREATE TABLE`, `DROP TABLE`, `INSERT INTO`, `SELECT`, `UPDATE`, `DELETE FROM`, `ALTER TABLE`, `VACUUM`.
 
 `CREATE TABLE users (id INT, name STRING)`
+
 `insert into users (name, id) values ("John", 2)`
+
 `SELECT *, id FROM users WHERE id > 5`
+
 `update users set name="John Doe" where name is null`
+
 `DELETE FROM users WHERE id = 2`
+
 `alter table users add rating float`
+
 `vacuum`
+
 `Drop table users`
 
 ### Checklist
