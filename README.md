@@ -76,7 +76,7 @@ database name + `_tables` suffix in current folder as a tables dir.
 
 `.createdb ~/dev/some_app/dev_app ~/dev/some_app/dev_app/tables`
 
-
+---
 
 `.dropdb DATABASE_PATH`
 
@@ -86,7 +86,7 @@ This metacommand can only be executed if no database is currently connected.
 
 `.dropdb test_app`
 
-
+---
 
 `.connect DATABASE_PATH`
 
@@ -97,13 +97,13 @@ Once executed, all sql statements will be executed on this database.
 
 `.connect /home/user/tmp/database.db`
 
-
+---
 
 `.close`
 
 Close database connection. All unflushed changes will be recorded to disk.
 
-
+---
 
 `.exit` or `.quit`
 
@@ -131,7 +131,7 @@ Supported statemes: `CREATE TABLE`, `DROP TABLE`, `INSERT INTO`, `SELECT`, `UPDA
 
 `Drop table users`
 
-### Checklist
+## Checklist
 - ✓ add prompt
 - ✓ add basic lexer
 - ✓ add basic parser
