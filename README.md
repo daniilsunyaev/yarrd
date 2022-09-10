@@ -194,7 +194,7 @@ Supported statemes: `CREATE TABLE`, `DROP TABLE`, `INSERT INTO`, `SELECT`, `UPDA
 - ✓ implement vacuum metacommand or something like that
 - ✓ add .create/.drop metacommand
 - ✓ add .connect/.close metacommands
-- add metacommands docs
+- ✓ add metacommands docs
 - implement primary constraint (may be just a primary key flag, no general constraints)
 - add row_id
 - introduce NOT
