@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use crate::command::{Command, ColumnDefinition, FieldAssignment, SelectColumnName};
 use crate::where_clause::WhereClause;
 use crate::lexer::SqlValue;
-use crate::table::{Table, ColumnType};
+use crate::table::{Table, ColumnType, Constraint};
 use crate::execution_error::ExecutionError;
 use crate::meta_command_error::MetaCommandError;
 use crate::query_result::QueryResult;
@@ -120,7 +120,8 @@ impl Database {
 
             column_definitions.push(ColumnDefinition {
                 name: SqlValue::Identificator(column_name.to_string()),
-                kind: column_type
+                kind: column_type,
+                constraints: vec![], // TODO: parse constraints
             });
         }
         let table_filepath = Self::table_filepath(tables_dir, table_name);

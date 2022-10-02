@@ -54,6 +54,7 @@ pub enum ParserError<'a> {
     AssignmentsInvalid(&'a Token),
     FromExpected(&'a Token),
     FromMissing,
+    InvalidConstraint(Vec<&'a Token>),
 }
 
 impl<'a> fmt::Display for ParserError<'a> {
@@ -121,7 +122,10 @@ impl<'a> fmt::Display for ParserError<'a> {
             Self::EqualsExpected(token) => format!("expected assignment '=' keyword, got {}", token),
             Self::AssignmentsInvalid(token) => format!("field assignment list is not finished, expected ',' or 'WHERE', got {:?}", token),
             Self::FromExpected(token) => format!("expected FROM keyword, got {}", token),
-            Self::FromMissing => "expected FROM keyword, got nothing".to_string()
+            Self::FromMissing => "expected FROM keyword, got nothing".to_string(),
+            Self::InvalidConstraint(tokens) =>
+                format!("cannot treat constraint sequence '{:?}'",
+                        tokens.iter().map(|t| t.to_string()).collect::<Vec<String>>()),
         };
 
         write!(f, "{}", message)

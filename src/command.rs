@@ -1,4 +1,4 @@
-use crate::table::ColumnType;
+use crate::table::{ColumnType, Constraint};
 use crate::lexer::SqlValue;
 use crate::where_clause::WhereClause;
 
@@ -12,6 +12,7 @@ pub enum SelectColumnName {
 pub struct ColumnDefinition {
     pub name: SqlValue,
     pub kind: ColumnType, // TODO: maybe use token instead, transition to sematic types should be on exec stage?
+    pub constraints: Vec<Constraint>,
 }
 
 #[derive(Debug)]
@@ -91,14 +92,17 @@ mod tests {
                 ColumnDefinition {
                     name: SqlValue::Identificator("id".to_string()),
                     kind: ColumnType::Integer,
+                    constraints: vec![],
                 },
                 ColumnDefinition {
                     name: SqlValue::Identificator("score".to_string()),
                     kind: ColumnType::Float,
+                    constraints: vec![],
                 },
                 ColumnDefinition {
                     name: SqlValue::String("name full".to_string()),
                     kind: ColumnType::String,
+                    constraints: vec![],
                 },
             ],
         };
@@ -123,7 +127,7 @@ mod tests {
     }
 
     #[test]
-    fn insert_and_select_from_table() {
+    fn insert_with_constraints_and_select_from_table() {
         let (_db_file, mut database) = open_test_database();
         let create_table = Command::CreateTable {
             table_name: SqlValue::Identificator("users".to_string()),
@@ -131,10 +135,12 @@ mod tests {
                 ColumnDefinition {
                     name: SqlValue::Identificator("id".to_string()),
                     kind: ColumnType::Integer,
+                    constraints: vec![Constraint::NotNull],
                 },
                 ColumnDefinition {
                     name: SqlValue::Identificator("name".to_string()),
                     kind: ColumnType::String,
+                    constraints: vec![],
                 }
             ],
         };
@@ -147,6 +153,16 @@ mod tests {
         };
         let insert_into_table_result = database.execute(insert_into_table);
         assert!(insert_into_table_result.is_ok());
+
+        let insert_into_table = Command::InsertInto {
+            table_name: SqlValue::Identificator("users".to_string()),
+            column_names: Some(vec![SqlValue::String("name".to_string())]),
+            values: vec![SqlValue::Identificator("John".to_string())],
+        };
+        let insert_into_table_result = database.execute(insert_into_table);
+        assert!(insert_into_table_result.is_err());
+        assert_eq!(format!("{}", insert_into_table_result.err().unwrap()),
+            "value NULL violates 'NOT NULL' constraint on column 'id' from table 'users'");
 
         let select_from_table = Command::Select {
             table_name: SqlValue::Identificator("users".to_string()),
@@ -183,10 +199,12 @@ mod tests {
                 ColumnDefinition {
                     name: SqlValue::Identificator("id".to_string()),
                     kind: ColumnType::Integer,
+                    constraints: vec![],
                 },
                 ColumnDefinition {
                     name: SqlValue::Identificator("name".to_string()),
                     kind: ColumnType::String,
+                    constraints: vec![],
                 }
             ],
         };
@@ -232,10 +250,12 @@ mod tests {
                 ColumnDefinition {
                     name: SqlValue::Identificator("id".to_string()),
                     kind: ColumnType::Integer,
+                    constraints: vec![],
                 },
                 ColumnDefinition {
                     name: SqlValue::Identificator("name".to_string()),
                     kind: ColumnType::String,
+                    constraints: vec![],
                 }
             ],
         };
@@ -282,6 +302,7 @@ mod tests {
                 ColumnDefinition {
                     name: SqlValue::Identificator("id".to_string()),
                     kind: ColumnType::Integer,
+                    constraints: vec![],
                 },
             ],
         };
@@ -305,6 +326,7 @@ mod tests {
                 ColumnDefinition {
                     name: SqlValue::Identificator("id".to_string()),
                     kind: ColumnType::Integer,
+                    constraints: vec![],
                 },
             ],
         };
@@ -329,8 +351,9 @@ mod tests {
                 ColumnDefinition {
                     name: SqlValue::Identificator("id".to_string()),
                     kind: ColumnType::Integer,
+                    constraints: vec![Constraint::NotNull],
                 },
-            ],
+            ]
         };
 
         assert!(database.execute(create_table).is_ok());
@@ -340,6 +363,7 @@ mod tests {
             column_definition: ColumnDefinition {
                 name: SqlValue::String("name".to_string()),
                 kind: ColumnType::String,
+                constraints: vec![],
             },
         };
 
@@ -355,10 +379,12 @@ mod tests {
                 ColumnDefinition {
                     name: SqlValue::Identificator("id".to_string()),
                     kind: ColumnType::Integer,
+                    constraints: vec![],
                 },
                 ColumnDefinition {
                     name: SqlValue::Identificator("name".to_string()),
                     kind: ColumnType::String,
+                    constraints: vec![],
                 },
             ],
         };
@@ -382,10 +408,12 @@ mod tests {
                 ColumnDefinition {
                     name: SqlValue::Identificator("id".to_string()),
                     kind: ColumnType::Integer,
+                    constraints: vec![],
                 },
                 ColumnDefinition {
                     name: SqlValue::Identificator("name".to_string()),
                     kind: ColumnType::String,
+                    constraints: vec![],
                 },
             ],
         };

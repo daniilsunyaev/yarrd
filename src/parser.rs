@@ -166,12 +166,13 @@ mod tests {
         let input = vec![
                 Token::Create, Token::Table, Token::Value(SqlValue::Identificator("table_name".into())),
                 Token::LeftParenthesis,
-                Token::Value(SqlValue::String("first_name".into())), Token::StringType, Token::Comma,
+                Token::Value(SqlValue::String("first_name".into())), Token::StringType, Token::Not, Token::Value(SqlValue::Null), Token::Comma,
                 Token::Value(SqlValue::Identificator("id".into())), Token::IntegerType, Token::Comma,
                 Token::Value(SqlValue::Identificator("age".into())), Token::FloatType,
                 Token::RightParenthesis,
            ];
 
+        println!("{:?}", parse_statement(input.iter()));
         assert!(parse_statement(input.iter()).is_ok());
     }
 

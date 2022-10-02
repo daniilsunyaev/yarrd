@@ -31,6 +31,7 @@ pub enum Token {
     Table,
     Values,
     Is,
+    Not,
     Vacuum,
     IntegerType, // TODO: maybe extract types to separate enum
     StringType,
@@ -70,6 +71,7 @@ impl fmt::Display for Token {
             Self::Table => "TABLE",
             Self::Values => "VALUES",
             Self::Is => "IS",
+            Self::Not => "NOT",
             Self::Vacuum => "VACUUM",
             Self::IntegerType => "int",
             Self::StringType => "string",
@@ -205,6 +207,7 @@ fn parse_token(str_token: &str) -> Token {
         "table" => Token::Table,
         "values" => Token::Values,
         "is" => Token::Is,
+        "not" => Token::Not,
         "vacuum" => Token::Vacuum,
         "int" => Token::IntegerType,
         "float" => Token::FloatType,
@@ -233,7 +236,7 @@ mod tests {
 
     #[test]
     fn token_parse() {
-        let valid_input = "create TABLE,table_name RENAME Column add (row columnn type int float to string (,) ";
+        let valid_input = "create TABLE,table_name RENAME Column not NULL add (row columnn type int float to string (,) ";
         let another_valid_input = "token*from alter";
         let invalid_input = "create (row \"column, type\" int string\" yy ";
         let another_invalid_input = ";123abc";
@@ -244,7 +247,7 @@ mod tests {
             to_tokens(valid_input).unwrap(),
             vec![
                 Token::Create, Token::Table, Token::Comma, Token::Value(SqlValue::Identificator("table_name".into())),
-                Token::Rename, Token::Column, Token::Add, Token::LeftParenthesis,
+                Token::Rename, Token::Column, Token::Not, Token::Value(SqlValue::Null), Token::Add, Token::LeftParenthesis,
                 Token::Value(SqlValue::Identificator("row".into())),
                 Token::Value(SqlValue::Identificator("columnn".into())), Token::Value(SqlValue::Identificator("type".into())),
                 Token::IntegerType, Token::FloatType, Token::To, Token::StringType, Token::LeftParenthesis,

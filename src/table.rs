@@ -42,11 +42,25 @@ impl ColumnType {
     }
 }
 
+#[derive(Debug, Clone)]
+pub enum Constraint {
+    NotNull
+}
+
+impl fmt::Display for Constraint {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::NotNull => write!(f, "NOT NULL"),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct Table {
     pub name: String,
     pub column_types: Vec<ColumnType>,
     pub column_names: Vec<String>,
+    pub constraints: Vec<Vec<Constraint>>,
     pager: Pager,
 }
 
@@ -54,16 +68,18 @@ impl Table {
     pub fn new(table_filepath: PathBuf, name: &str, column_definitions: Vec<ColumnDefinition>) -> Result<Table, TableError> {
         let mut column_names = vec![];
         let mut column_types = vec![];
+        let mut constraints = vec![];
 
-        for column_definition in column_definitions {
+        for (i, column_definition) in column_definitions.into_iter().enumerate() {
             column_names.push(column_definition.name.to_string());
             column_types.push(column_definition.kind);
+            constraints.insert(i, column_definition.constraints);
         }
         let row_size = Row::calculate_row_size(&column_types);
         let pager = Pager::new(table_filepath.as_path(), row_size)
             .map_err(TableError::CreateError)?;
 
-        Ok(Self { name: name.to_string(), column_types, column_names, pager })
+        Ok(Self { name: name.to_string(), column_types, column_names, pager, constraints })
     }
 
     pub fn select(&mut self, select_column_names: Vec<SelectColumnName>, where_clause: Option<WhereClause>) -> Result<QueryResult, TableError> {
@@ -121,6 +137,8 @@ impl Table {
         for (value, column_index) in values.into_iter().zip(column_indices.into_iter()) {
             result_values[column_index] = value;
         }
+        let indices: Vec<usize> = (0..result_values.len()).collect();
+        self.validate_constraints(&result_values, &indices)?;
 
         let row = Row::from_sql_values(result_values, &self.column_types)
             .map_err(TableError::CannotGetCell)?;
@@ -136,6 +154,7 @@ impl Table {
         let column_indices = self.get_columns_indices(&column_names)?;
         let column_types = self.column_types.clone(); // need to clone this because of borrow checker
         self.validate_values_type(&column_values, &column_indices)?;
+        self.validate_constraints(&column_values, &column_indices)?;
         let pager_raw: *mut Pager = &mut self.pager;
 
         for row_check in self.matching_rows(where_clause) {
@@ -148,6 +167,8 @@ impl Table {
             }
             // pager will not reallocate to a new space during matching_rows iteration
             // so we can safely dereference raw mut pointer
+            // TODO: check if we can move pager_raw and give it back, i.e.
+            // pager_raw = pager_raw.update_row(...)
             unsafe {
                 (*pager_raw).update_row(row_number, &row).map_err(TableError::CannotUpdateRow)?;
             }
@@ -177,8 +198,14 @@ impl Table {
     }
 
     pub fn column_definitions(&self) -> Vec<ColumnDefinition> {
-        self.column_names.iter().zip(self.column_types.iter())
-            .map(|(name, kind)| ColumnDefinition { name: SqlValue::String(name.clone()), kind: *kind })
+        self.column_names.iter().enumerate().zip(self.column_types.iter())
+            .map(|((i, name), kind)| {
+                ColumnDefinition {
+                    name: SqlValue::String(name.clone()),
+                    kind: *kind,
+                    constraints: self.constraints[i].clone(),
+                }
+            })
             .collect()
     }
 
@@ -223,6 +250,30 @@ impl Table {
         }
 
         Ok(column_indices)
+    }
+
+    fn validate_constraints(&self, columns_values: &[SqlValue], column_indices: &[usize]) -> Result<(), TableError> {
+        for (value, &column_index) in columns_values.into_iter().zip(column_indices.into_iter()) {
+            for constraint in &self.constraints[column_index] {
+                match constraint { // TODO: extract method
+                    Constraint::NotNull => match value {
+                        SqlValue::Null => {
+                            return Err(
+                                TableError::ConstraintViolation {
+                                    table_name: self.name.clone(),
+                                    column_name: self.column_names[column_index].clone(),
+                                    constraint: constraint.clone(),
+                                    value: value.clone()
+                                }
+                                )
+                        },
+                        _ => continue,
+                    }
+                }
+            }
+        }
+
+        Ok(())
     }
 
     fn validate_values_type(&self, columns_values: &[SqlValue], column_indices: &[usize]) -> Result<(), TableError> {

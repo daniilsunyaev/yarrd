@@ -67,7 +67,7 @@ fn parse_add_column<'a, I>(mut token: I, table_name: SqlValue) -> Result<Command
 where
     I: Iterator<Item = &'a Token>
 {
-    let column_definition = parse_column_definition(&mut token)?;
+    let (column_definition, _) = parse_column_definition(&mut token)?;
 
     Ok(Command::AddTableColumn { table_name, column_definition })
 }
