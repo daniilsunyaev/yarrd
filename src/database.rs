@@ -6,11 +6,12 @@ use std::path::{Path, PathBuf};
 use crate::command::{Command, ColumnDefinition, FieldAssignment, SelectColumnName};
 use crate::where_clause::WhereClause;
 use crate::lexer::SqlValue;
-use crate::table::{Table, ColumnType, Constraint};
+use crate::table::{Table, ColumnType};
 use crate::execution_error::ExecutionError;
 use crate::meta_command_error::MetaCommandError;
 use crate::query_result::QueryResult;
 use crate::helpers::get_timestamp;
+use crate::parser;
 
 const TABLE_EXTENSION: &str = "table";
 
@@ -93,44 +94,16 @@ impl Database {
         Ok(())
     }
 
-    fn parse_schema_line(tables_dir: &Path, table_definition_line: &str) -> Result<Table, MetaCommandError> {
-        let mut word_iter = table_definition_line.split_whitespace();
-        let table_name = word_iter.next()
-            .ok_or(MetaCommandError::SchemaDefinitionMissing)?;
-        let mut column_definitions = vec![];
-
-        while let Some(column_name) = word_iter.next() {
-            let column_type_str = word_iter.next()
-                .ok_or(MetaCommandError::SchemaDefinitionInvalid {
-                    table_name: table_name.to_string(),
-                    expected: "column type",
-                    actual: "".to_string(),
-                })?;
-
-            let column_type = match column_type_str {
-                "INT" => ColumnType::Integer,
-                "FLOAT" => ColumnType::Float,
-                "STRING" => ColumnType::String,
-                _ => return Err(MetaCommandError::SchemaDefinitionInvalid {
-                    table_name: table_name.to_string(),
-                    expected: "column type (INT/FLOAT/STRING)",
-                    actual: column_type_str.to_string(),
-                }),
-            };
-
-            column_definitions.push(ColumnDefinition {
-                name: SqlValue::Identificator(column_name.to_string()),
-                kind: column_type,
-                constraints: vec![], // TODO: parse constraints
-            });
-        }
-        let table_filepath = Self::table_filepath(tables_dir, table_name);
-
-        Ok(Table::new(table_filepath, table_name, column_definitions)?)
-    }
-
     pub fn close(self) {
         self.flush_schema();
+    }
+
+    pub fn parse_schema_line(tables_dir: &Path, table_definition_line: &str) -> Result<Table, MetaCommandError> {
+        let (table_name, column_definitions) = parser::parse_schema_line(table_definition_line)
+            .map_err(|parser_error| MetaCommandError::ParseError(parser_error.to_string()))?;
+        let table_filepath = Self::table_filepath(tables_dir, &table_name);
+
+        Ok(Table::new(table_filepath, &table_name, column_definitions)?)
     }
 
     // TODO: return result instead of unwrapping and handle err (probably via logging)
@@ -145,6 +118,14 @@ impl Database {
             write!(database_file, "{}", table_name).unwrap();
             for i in 0..table.column_types.len() {
                 write!(database_file, " {} {}", table.column_names[i], table.column_types[i]).unwrap();
+                for constraint in &table.constraints[i] {
+                    write!(database_file, " {}", constraint).unwrap();
+                }
+
+                if i < table.column_types.len() - 1 {
+                    write!(database_file, ",").unwrap();
+                }
+
             }
             writeln!(database_file).unwrap();
         }

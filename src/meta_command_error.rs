@@ -11,8 +11,6 @@ pub enum MetaCommandError {
     IoError(io::Error),
     DatabaseFileAlreadyExist(PathBuf),
     DatabaseTablesDirNotExist(PathBuf),
-    SchemaDefinitionMissing,
-    SchemaDefinitionInvalid { table_name: String, expected: &'static str, actual: String },
     TableError(TableError),
     ParseError(String),
     UnknownCommand(String),
@@ -30,10 +28,6 @@ impl fmt::Display for MetaCommandError {
             Self::DatabaseFileAlreadyExist(tables_dir) =>
                 format!("cannot create database file at '{}': file already exist",
                         tables_dir.to_str().unwrap()),
-            Self::SchemaDefinitionMissing => "no schema definition found".to_string(),
-            Self::SchemaDefinitionInvalid { table_name, expected, actual } =>
-                format!("failed to parse schema definition for table '{}', expected {}, got '{}'",
-                        table_name, expected, actual),
             Self::TableError(table_error) => table_error.to_string(),
             Self::ParseError(parser_error) => format!("failed to parse metacommand: {}", parser_error),
             Self::UnknownCommand(input) => format!("unknown metacommand: {}", input),

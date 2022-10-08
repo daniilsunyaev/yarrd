@@ -97,7 +97,6 @@ where
             Some(token) => tokens.push(token),
             None => return (tokens, None),
         }
-
     }
 }
 

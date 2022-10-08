@@ -3,7 +3,9 @@ use std::path::{Path, PathBuf};
 use crate::command::Command;
 use crate::meta_command::MetaCommand;
 use crate::meta_command_error::MetaCommandError;
+use crate::lexer;
 use crate::lexer::Token;
+use crate::command::ColumnDefinition;
 use crate::parser::error::ParserError;
 use create::parse_create_statement;
 use drop::parse_drop_statement;
@@ -13,6 +15,7 @@ use select::parse_select_statement;
 use delete::parse_delete_statement;
 use alter::parse_alter_statement;
 use vacuum::parse_vacuum_statement;
+use crate::parser::shared::parse_column_definition;
 
 mod create;
 mod drop;
@@ -84,6 +87,29 @@ pub fn parse_meta_command(input: &str) -> MetaCommand {
     }
 }
 
+pub fn parse_schema_line(table_definition_line: &str) -> Result<(String, Vec<ColumnDefinition>), ParserError> {
+    let tokens = lexer::to_tokens(table_definition_line).map_err(ParserError::LexerError)?;
+    let mut token_iter = tokens.iter();
+    let table_name = token_iter.next().ok_or(ParserError::TableNameMissing)?;
+    let table_name = table_name.to_string();
+    let mut column_definitions = vec![];
+
+    loop {
+        let (column_definition, last_token) = match parse_column_definition(&mut token_iter) {
+            Ok(tuple) => tuple,
+            Err(parser_error) => return Err(ParserError::InvalidSchemaDefinition(parser_error.to_string())),
+        };
+        column_definitions.push(column_definition);
+
+        match last_token {
+            Some(Token::Comma) => continue,
+            None => break,
+            _ => return Err(ParserError::CommaExpected("column_definitions")),
+        }
+    }
+    Ok((table_name, column_definitions))
+}
+
 pub fn parse_createdb(input: &str) -> Result<MetaCommand, ParserError> {
     let mut input_iterator = input.splitn(3, ' ');
     input_iterator.next(); // skip ".createdb"
@@ -145,6 +171,7 @@ fn pathify(string: &str) -> PathBuf {
 mod tests {
     use super::*;
     use crate::lexer::SqlValue;
+    use crate::table::{ColumnType, Constraint};
 
     #[test]
     fn insert_with_column_names() {
@@ -432,5 +459,28 @@ mod tests {
                     parse_meta_command(".close foo"),
                     MetaCommand::Unknown(_)
                 ));
+    }
+
+    #[test]
+    fn parse_valid_schema() {
+        let (table_name, column_definitions) = parse_schema_line("users id int not null, name string").unwrap();
+        assert_eq!(table_name, "users");
+        assert_eq!(column_definitions[0].name.to_string(), "id");
+        assert!(matches!(column_definitions[0].kind, ColumnType::Integer));
+        assert_eq!(column_definitions[0].constraints.len(), 1);
+        assert!(matches!(column_definitions[0].constraints[0], Constraint::NotNull));
+
+        assert_eq!(column_definitions[1].name.to_string(), "name");
+        assert!(matches!(column_definitions[1].kind, ColumnType::String));
+        assert_eq!(column_definitions[1].constraints.len(), 0);
+    }
+
+    #[test]
+    fn parse_invalid_schema() {
+        assert!(matches!(
+                parse_schema_line("users id int not, name string"),
+                Err(ParserError::InvalidSchemaDefinition(_))
+                )
+               );
     }
 }
