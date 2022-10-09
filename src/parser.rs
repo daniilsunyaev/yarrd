@@ -90,15 +90,13 @@ pub fn parse_meta_command(input: &str) -> MetaCommand {
 pub fn parse_schema_line(table_definition_line: &str) -> Result<(String, Vec<ColumnDefinition>), ParserError> {
     let tokens = lexer::to_tokens(table_definition_line).map_err(ParserError::LexerError)?;
     let mut token_iter = tokens.iter();
-    let table_name = token_iter.next().ok_or(ParserError::TableNameMissing)?;
-    let table_name = table_name.to_string();
+    let table_name = token_iter.next().ok_or(ParserError::TableNameMissing)?.to_string();
     let mut column_definitions = vec![];
 
     loop {
-        let (column_definition, last_token) = match parse_column_definition(&mut token_iter) {
-            Ok(tuple) => tuple,
-            Err(parser_error) => return Err(ParserError::InvalidSchemaDefinition(parser_error.to_string())),
-        };
+        let (column_definition, last_token) = parse_column_definition(&mut token_iter)
+            .map_err(|parser_error| ParserError::InvalidSchemaDefinition(parser_error.to_string()))?;
+
         column_definitions.push(column_definition);
 
         match last_token {
@@ -199,7 +197,6 @@ mod tests {
                 Token::RightParenthesis,
            ];
 
-        println!("{:?}", parse_statement(input.iter()));
         assert!(parse_statement(input.iter()).is_ok());
     }
 
