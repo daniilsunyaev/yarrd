@@ -255,25 +255,29 @@ impl Table {
     fn validate_constraints(&self, columns_values: &[SqlValue], column_indices: &[usize]) -> Result<(), TableError> {
         for (value, &column_index) in columns_values.into_iter().zip(column_indices.into_iter()) {
             for constraint in &self.constraints[column_index] {
-                match constraint { // TODO: extract method
-                    Constraint::NotNull => match value {
-                        SqlValue::Null => {
-                            return Err(
-                                TableError::ConstraintViolation {
-                                    table_name: self.name.clone(),
-                                    column_name: self.column_names[column_index].clone(),
-                                    constraint: constraint.clone(),
-                                    value: value.clone()
-                                }
-                                )
-                        },
-                        _ => continue,
-                    }
+                match self.check_value_over_constraint(value, constraint) {
+                    Ok(_) => continue,
+                    Err(_) => return Err(
+                        TableError::ConstraintViolation {
+                            table_name: self.name.clone(),
+                            column_name: self.column_names[column_index].clone(),
+                            constraint: constraint.clone(),
+                            value: value.clone()
+                        }),
                 }
             }
         }
 
         Ok(())
+    }
+
+    fn check_value_over_constraint(&self, value: &SqlValue, constraint: &Constraint) -> Result<(), ()> {
+        match constraint {
+            Constraint::NotNull => match value {
+                SqlValue::Null => Err(()),
+                _ => Ok(()),
+            },
+        }
     }
 
     fn validate_values_type(&self, columns_values: &[SqlValue], column_indices: &[usize]) -> Result<(), TableError> {
