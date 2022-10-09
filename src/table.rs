@@ -253,7 +253,7 @@ impl Table {
     }
 
     fn validate_constraints(&self, columns_values: &[SqlValue], column_indices: &[usize]) -> Result<(), TableError> {
-        for (value, &column_index) in columns_values.into_iter().zip(column_indices.into_iter()) {
+        for (value, &column_index) in columns_values.iter().zip(column_indices.iter()) {
             for constraint in &self.constraints[column_index] {
                 match self.check_value_over_constraint(value, constraint) {
                     Ok(_) => continue,
