@@ -2,7 +2,7 @@ use crate::command::{Command, ColumnDefinition};
 use crate::lexer::Token;
 use crate::parser::error::ParserError;
 use crate::parser::shared::
-    {parse_table_name, parse_left_parenthesis, parse_csl_right_parenthesis, parse_column_definition};
+    {parse_table_name, parse_left_parenthesis, parse_column_definition};
 
 pub fn parse_create_statement<'a, I>(mut token: I) -> Result<Command, ParserError<'a>>
 where
@@ -32,13 +32,14 @@ where
     parse_left_parenthesis(&mut token, "column definitions")?;
 
     loop {
-        let column = parse_column_definition(&mut token)?;
+        let (column, last_token) = parse_column_definition(&mut token)?;
         columns.push(column);
 
-        match parse_csl_right_parenthesis(&mut token, "column definitions")? {
-            true => break,
-            false => { },
-        };
+        match last_token {
+            Some(Token::Comma) => continue,
+            Some(Token::RightParenthesis) => break,
+            _ => return Err(ParserError::RightParenthesisMissing("column_definitions")),
+        }
     }
 
     Ok(columns)

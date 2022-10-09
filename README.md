@@ -114,8 +114,9 @@ Close database connection and exit from cmd interface.
 Querying syntax is similar to sql, but have no semicolon at the end.
 
 Supported statemes: `CREATE TABLE`, `DROP TABLE`, `INSERT INTO`, `SELECT`, `UPDATE`, `DELETE FROM`, `ALTER TABLE`, `VACUUM`.
+Supported constraints: `NOT NULL`.
 
-`CREATE TABLE users (id INT, name STRING)`
+`CREATE TABLE users (id INT NOT NULL, name STRING)`
 
 `insert into users (name, id) values ("John", 2)`
 
@@ -195,11 +196,20 @@ Supported statemes: `CREATE TABLE`, `DROP TABLE`, `INSERT INTO`, `SELECT`, `UPDA
 - ✓ add .create/.drop metacommand
 - ✓ add .connect/.close metacommands
 - ✓ add metacommands docs
-- implement primary constraint (may be just a primary key flag, no general constraints)
-- add row_id
+- ✗ add row_id to service bytes
+- ✓ implement not null constraint
+- allow to update constraints
+- implement default constraint
+- implement check constraint
+- implement create index
+  - store hashtable for primary keys at the beginning of file or store those in root database file
+  - update hashtable on insert
+  - update hashtable on delete
+  - update hashtable on update
+- implement unique constraint
+- implement primary constraint and use row_id if not set
 - introduce NOT
 - remove tables dir if it is empty after tables cleanup
-- store hashtable for primary keys at the beginning of file or store those in root database file
 - maybe use peek and rewrite parser in more of decoupeled manner? Try to allow keyword names
 - add table column names -> column offset hashmap
 - add pretty output of queries
@@ -218,4 +228,6 @@ Supported statemes: `CREATE TABLE`, `DROP TABLE`, `INSERT INTO`, `SELECT`, `UPDA
 - restore from journal
 - support non-ascii chars
 - transactions
+- AST
+- think of implementing btree index
 - think of metalexer

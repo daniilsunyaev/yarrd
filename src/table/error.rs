@@ -3,6 +3,7 @@ use std::error::Error;
 
 use crate::pager::PagerError;
 use crate::table::ColumnType;
+use crate::table::Constraint;
 use crate::lexer::SqlValue;
 use crate::serialize::SerDeError;
 use crate::cmp_operator::CmpError;
@@ -21,6 +22,7 @@ pub enum TableError {
     CannotDeleteRow(PagerError),
     CmpError(CmpError),
     VacuumFailed(PagerError),
+    ConstraintViolation { table_name: String, constraint: Constraint, column_name: String, value: SqlValue },
 }
 
 impl fmt::Display for TableError {
@@ -43,6 +45,10 @@ impl fmt::Display for TableError {
             Self::CannotDeleteRow(_pager_error) => write!(f, "cannot delete row in the table"),
             Self::CmpError(cmp_error) => write!(f, "{}", cmp_error),
             Self::VacuumFailed(_pager_error) => write!(f, "failed to vaccum table"),
+            Self::ConstraintViolation { table_name, constraint, column_name, value } =>
+                write!(f,
+                    "value {} violates '{}' constraint on column '{}' from table '{}'",
+                    value, constraint, column_name, table_name),
         }
     }
 }
