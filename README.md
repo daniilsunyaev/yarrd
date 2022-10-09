@@ -197,7 +197,7 @@ Supported constraints: `NOT NULL`.
 - ✓ add .connect/.close metacommands
 - ✓ add metacommands docs
 - ✗ add row_id to service bytes
-- implement not null constraint
+- ✓ implement not null constraint
 - allow to update constraints
 - implement default constraint
 - implement check constraint
