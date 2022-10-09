@@ -114,8 +114,9 @@ Close database connection and exit from cmd interface.
 Querying syntax is similar to sql, but have no semicolon at the end.
 
 Supported statemes: `CREATE TABLE`, `DROP TABLE`, `INSERT INTO`, `SELECT`, `UPDATE`, `DELETE FROM`, `ALTER TABLE`, `VACUUM`.
+Supported constraints: `NOT NULL`.
 
-`CREATE TABLE users (id INT, name STRING)`
+`CREATE TABLE users (id INT NOT NULL, name STRING)`
 
 `insert into users (name, id) values ("John", 2)`
 
