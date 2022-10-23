@@ -309,6 +309,20 @@ mod tests {
     }
 
     #[test]
+    fn alter_add_constraint() {
+        let input = vec![
+                Token::Alter, Token::Table,
+                Token::Value(SqlValue::Identificator("table_name".into())),
+                Token::Add, Token::Constraint, Token::Not, Token::Value(SqlValue::Null),
+                Token::LeftParenthesis,
+                Token::Value(SqlValue::Identificator("id".into())),
+                Token::RightParenthesis,
+           ];
+
+        assert!(parse_statement(input.iter()).is_ok());
+    }
+
+    #[test]
     fn alter_rename_table_column() {
         let input = vec![
                 Token::Alter, Token::Table,
@@ -327,7 +341,7 @@ mod tests {
         let input = vec![
                 Token::Alter, Token::Table,
                 Token::Value(SqlValue::Identificator("table_name".into())),
-                Token::Add, Token::Value(SqlValue::Identificator("column_name".into())),
+                Token::Add, Token::Column, Token::Value(SqlValue::Identificator("column_name".into())),
                 Token::IntegerType,
            ];
 

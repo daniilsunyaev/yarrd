@@ -1,7 +1,8 @@
 use crate::command::Command;
 use crate::lexer::Token;
+use crate::table::Constraint;
 use crate::parser::error::ParserError;
-use crate::parser::shared::{parse_table_name, parse_column_name, parse_column_definition};
+use crate::parser::shared::{parse_table_name, parse_column_name, parse_column_definition, parse_constraint_tokens};
 use crate::lexer::SqlValue;
 
 pub fn parse_alter_statement<'a, I>(mut token: I) -> Result<Command, ParserError<'a>>
@@ -29,7 +30,7 @@ where
                 Some(token) =>  Err(ParserError::RenameTypeUnknown(token)),
             }
         },
-        Some(Token::Add) => parse_add_column(token, table_name),
+        Some(Token::Add) => parse_add_entity(token, table_name),
         Some(Token::Drop) => parse_drop_entity(token, table_name),
         None => Err(ParserError::AlterTableActionMissing),
         Some(token) => Err(ParserError::AlterTableActionUnknown(token)),
@@ -63,13 +64,54 @@ where
     }
 }
 
-fn parse_add_column<'a, I>(mut token: I, table_name: SqlValue) -> Result<Command, ParserError<'a>>
+fn parse_add_entity<'a, I>(mut token: I, table_name: SqlValue) -> Result<Command, ParserError<'a>>
 where
     I: Iterator<Item = &'a Token>
 {
-    let (column_definition, _) = parse_column_definition(&mut token)?;
+    match token.next() {
+        Some(Token::Column) => {
+            let (column_definition, _) = parse_column_definition(&mut token)?;
+            Ok(Command::AddTableColumn { table_name, column_definition })
+        },
+        Some(Token::Constraint) => {
+            let (column_name, constraint) = parse_column_constraint(&mut token)?;
+            Ok(Command::AddColumnConstraint { table_name, column_name, constraint })
+        }
+        None => Err(ParserError::AddTypeMissing),
+        Some(token) => Err(ParserError::AddTypeUnknown(token, "COLUMN")),
+    }
+}
 
-    Ok(Command::AddTableColumn { table_name, column_definition })
+fn parse_column_constraint<'a, I>(mut token: I) -> Result<(SqlValue, Constraint), ParserError<'a>>
+where
+    I: Iterator<Item = &'a Token>
+{
+    let mut constraint_tokens = vec![];
+    loop {
+        match token.next() {
+            Some(Token::LeftParenthesis) => break,
+            Some(token) => constraint_tokens.push(token),
+            None => return Err(ParserError::LeftParenthesisMissing("column name")),
+        }
+    }
+
+    let column_name = parse_column_name(&mut token)?;
+    match token.next() {
+        Some(Token::RightParenthesis) => {},
+        Some(token) => return Err(ParserError::RightParenthesisExpected(token, "column name")),
+        None => return Err(ParserError::RightParenthesisMissing("column name")),
+    }
+
+    let mut constraints = parse_constraint_tokens(constraint_tokens)?;
+    match constraints.len() {
+        0 => return Err(ParserError::NoConstraintsGiven),
+        1 => {},
+        _ => return Err(ParserError::MultipleConstraintsGiven),
+    }
+    let constraint = constraints.pop().unwrap();
+
+
+    Ok((column_name, constraint))
 }
 
 fn parse_drop_entity<'a, I>(mut token: I, table_name: SqlValue) -> Result<Command, ParserError<'a>>

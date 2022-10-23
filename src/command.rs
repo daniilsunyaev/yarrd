@@ -62,6 +62,11 @@ pub enum Command {
         table_name: SqlValue,
         column_definition: ColumnDefinition,
     },
+    AddColumnConstraint {
+        table_name: SqlValue,
+        column_name: SqlValue,
+        constraint: Constraint,
+    },
     DropTableColumn {
         table_name: SqlValue,
         column_name: SqlValue,
