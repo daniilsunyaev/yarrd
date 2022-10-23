@@ -22,6 +22,8 @@ pub enum TableError {
     CannotDeleteRow(PagerError),
     CmpError(CmpError),
     VacuumFailed(PagerError),
+    ConstraintAlreadyExists { table_name: String, column_name: String, constraint: Constraint },
+    ConstraintNotExists { table_name: String, column_name: String, constraint: Constraint },
     ConstraintViolation { table_name: String, constraint: Constraint, column_name: String, value: SqlValue },
 }
 
@@ -45,6 +47,10 @@ impl fmt::Display for TableError {
             Self::CannotDeleteRow(_pager_error) => write!(f, "cannot delete row in the table"),
             Self::CmpError(cmp_error) => write!(f, "{}", cmp_error),
             Self::VacuumFailed(_pager_error) => write!(f, "failed to vaccum table"),
+            Self::ConstraintAlreadyExists { table_name, column_name, constraint } =>
+                write!(f, "table's '{}' column '{}' already has constraint '{}'", table_name, column_name, constraint),
+            Self::ConstraintNotExists { table_name, column_name, constraint } =>
+                write!(f, "table's '{}' column '{}' does not have constraint '{}'", table_name, column_name, constraint),
             Self::ConstraintViolation { table_name, constraint, column_name, value } =>
                 write!(f,
                     "value {} violates '{}' constraint on column '{}' from table '{}'",

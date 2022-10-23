@@ -42,7 +42,7 @@ impl ColumnType {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Constraint {
     NotNull
 }
@@ -194,6 +194,40 @@ impl Table {
         let column_index = self.column_index_result(column_name.as_str())?;
 
         self.column_names[column_index] = new_column_name;
+        Ok(())
+    }
+
+    pub fn add_column_constraint(&mut self, column_name: String, constraint: Constraint) -> Result<(), TableError> {
+        let column_index = self.column_index_result(column_name.as_str())?;
+        let column_constraints = &mut self.constraints[column_index];
+
+        if column_constraints.contains(&constraint) {
+            return Err(TableError::ConstraintAlreadyExists { table_name: self.name.clone(), column_name, constraint })
+        }
+
+        column_constraints.push(constraint);
+
+        Ok(())
+    }
+
+    pub fn drop_column_constraint(&mut self, column_name: String, constraint: Constraint) -> Result<(), TableError> {
+        let column_index = self.column_index_result(column_name.as_str())?;
+        let column_constraints = &mut self.constraints[column_index];
+
+        match column_constraints.iter().position(|existing_constraint| *existing_constraint == constraint) {
+            None => {
+                return Err(TableError::ConstraintNotExists {
+                    table_name: self.name.clone(),
+                    column_name,
+                    constraint,
+                })
+            },
+            Some(index) => {
+                column_constraints.swap_remove(index);
+                ()
+            },
+        }
+
         Ok(())
     }
 

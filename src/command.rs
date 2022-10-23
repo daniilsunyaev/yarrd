@@ -304,7 +304,7 @@ mod tests {
     }
 
     #[test]
-    fn create_and_rename_table() {
+    fn create_and_rename_alter_constraint_table() {
         let (_db_file, mut database) = open_test_database();
         let create_table = Command::CreateTable {
             table_name: SqlValue::Identificator("users".to_string()),
@@ -325,6 +325,22 @@ mod tests {
         };
 
         assert!(database.execute(rename_table).is_ok());
+
+        let alter_table_constraint = Command::AddColumnConstraint {
+            table_name: SqlValue::Identificator("users_new".to_string()),
+            column_name: SqlValue::Identificator("id".to_string()),
+            constraint: Constraint::NotNull
+        };
+
+        assert!(database.execute(alter_table_constraint).is_ok());
+
+        let drop_table_constraint = Command::DropColumnConstraint {
+            table_name: SqlValue::Identificator("users_new".to_string()),
+            column_name: SqlValue::Identificator("id".to_string()),
+            constraint: Constraint::NotNull
+        };
+
+        assert!(database.execute(drop_table_constraint).is_ok());
     }
 
     #[test]

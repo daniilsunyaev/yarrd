@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use crate::command::{Command, ColumnDefinition, FieldAssignment, SelectColumnName};
 use crate::where_clause::WhereClause;
 use crate::lexer::SqlValue;
-use crate::table::{Table, ColumnType};
+use crate::table::{Table, ColumnType, Constraint};
 use crate::execution_error::ExecutionError;
 use crate::meta_command_error::MetaCommandError;
 use crate::query_result::QueryResult;
@@ -143,8 +143,10 @@ impl Database {
             Command::RenameTableColumn { table_name, column_name, new_column_name } =>
                 self.rename_table_column(table_name, column_name, new_column_name),
             Command::AddTableColumn { table_name, column_definition } => self.add_table_column(table_name, column_definition),
-            Command::AddColumnConstraint { table_name, column_name, constraint } => { Ok(None) },
-            Command::DropColumnConstraint { table_name, column_name, constraint } => { Ok(None) },
+            Command::AddColumnConstraint { table_name, column_name, constraint } =>
+                self.add_table_column_constraint(table_name, column_name, constraint),
+            Command::DropColumnConstraint { table_name, column_name, constraint } =>
+                self.drop_table_column_constraint(table_name, column_name, constraint),
             Command::DropTableColumn { table_name, column_name } => self.drop_table_column(table_name, column_name),
             Command::VacuumTable { table_name } => self.vacuum_table(&table_name),
             Command::Void => Ok(None),
@@ -250,6 +252,28 @@ impl Database {
 
         let table = self.get_table(&table_name)?;
         table.rename_column(column_name_string, new_column_name_string)?;
+
+        // TODO: use result, and rename column back if flush is not possible
+        self.flush_schema();
+        Ok(None)
+    }
+
+    fn add_table_column_constraint(&mut self, table_name: SqlValue, column_name: SqlValue, constraint: Constraint) -> Result<Option<QueryResult>, ExecutionError> {
+        let column_name_string = column_name.to_string();
+
+        let table = self.get_table(&table_name)?;
+        table.add_column_constraint(column_name_string, constraint)?;
+
+        // TODO: use result, and rename column back if flush is not possible
+        self.flush_schema();
+        Ok(None)
+    }
+
+    fn drop_table_column_constraint(&mut self, table_name: SqlValue, column_name: SqlValue, constraint: Constraint) -> Result<Option<QueryResult>, ExecutionError> {
+        let column_name_string = column_name.to_string();
+
+        let table = self.get_table(&table_name)?;
+        table.drop_column_constraint(column_name_string, constraint)?;
 
         // TODO: use result, and rename column back if flush is not possible
         self.flush_schema();
