@@ -123,6 +123,10 @@ where
             let column_name = parse_column_name(token)?;
             Ok(Command::DropTableColumn { table_name, column_name })
         },
+        Some(Token::Constraint) => {
+            let (column_name, constraint) = parse_column_constraint(&mut token)?;
+            Ok(Command::DropColumnConstraint { table_name, column_name, constraint })
+        }
         None => Err(ParserError::DropTypeMissing),
         Some(token) => Err(ParserError::DropTypeUnknown(token, "COLUMN")),
     }

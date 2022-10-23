@@ -361,6 +361,20 @@ mod tests {
     }
 
     #[test]
+    fn alter_table_drop_constraint() {
+        let input = vec![
+                Token::Alter, Token::Table,
+                Token::Value(SqlValue::Identificator("table_name".into())),
+                Token::Drop, Token::Constraint, Token::Not, Token::Value(SqlValue::Null),
+                Token::LeftParenthesis,
+                Token::Value(SqlValue::Identificator("id".into())),
+                Token::RightParenthesis,
+           ];
+
+        assert!(parse_statement(input.iter()).is_ok());
+    }
+
+    #[test]
     fn vacuum_table() {
         let input = vec![
                 Token::Vacuum,
