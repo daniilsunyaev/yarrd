@@ -76,7 +76,7 @@ where
         Some(Token::Constraint) => {
             let (column_name, constraint) = parse_column_constraint(&mut token)?;
             Ok(Command::AddColumnConstraint { table_name, column_name, constraint })
-        }
+        },
         None => Err(ParserError::AddTypeMissing),
         Some(token) => Err(ParserError::AddTypeUnknown(token, "COLUMN")),
     }

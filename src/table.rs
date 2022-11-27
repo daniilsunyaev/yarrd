@@ -224,7 +224,6 @@ impl Table {
             },
             Some(index) => {
                 column_constraints.swap_remove(index);
-                ()
             },
         }
 
