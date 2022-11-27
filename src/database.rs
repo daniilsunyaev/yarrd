@@ -229,7 +229,7 @@ impl Database {
         let table_filepath = Self::table_filepath(self.tables_dir.as_path(), table_name_string.as_str());
         let new_table_filepath = Self::table_filepath(self.tables_dir.as_path(), new_table_name_string.as_str());
 
-        let table = match self.tables.remove(table_name_string.as_str()) {
+        let mut table = match self.tables.remove(table_name_string.as_str()) {
             None => return Err(ExecutionError::TableNotExist(table_name_string)),
             Some(table) => table,
         };
@@ -240,6 +240,7 @@ impl Database {
                 Err(io_error.into())
             },
             Ok(_) => {
+                table.name = new_table_name_string.clone();
                 self.tables.insert(new_table_name_string, table);
                 Ok(None)
             }
