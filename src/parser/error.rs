@@ -14,6 +14,8 @@ pub enum ParserError<'a> {
     CreateTypeUnknown(&'a Token),
     DropTypeMissing,
     DropTypeUnknown(&'a Token, &'static str),
+    AddTypeMissing,
+    AddTypeUnknown(&'a Token, &'static str),
     AlterTypeMissing,
     AlterTypeUnknown(&'a Token),
     AlterTableActionMissing,
@@ -58,6 +60,8 @@ pub enum ParserError<'a> {
     FromMissing,
     LexerError(LexerError),
     InvalidConstraint(Vec<&'a Token>),
+    NoConstraintsGiven,
+    MultipleConstraintsGiven,
     InvalidSchemaDefinition(String),
 }
 
@@ -77,6 +81,9 @@ impl<'a> fmt::Display for ParserError<'a> {
             Self::DropTypeMissing => "DROP type is not provided".to_string(),
             Self::DropTypeUnknown(drop_type, considered) =>
                 format!("unknown DROP type '{}', consider using DROP {}", drop_type, considered),
+            Self::AddTypeMissing => "ADD type is not provided".to_string(),
+            Self::AddTypeUnknown(drop_type, considered) =>
+                format!("unknown ADD type '{}', consider using DROP {}", drop_type, considered),
             Self::AlterTypeMissing => "ALTER type is not provided".to_string(),
             Self::AlterTypeUnknown(alter_type) =>
                 format!("unknown ALTER type '{}', consider using ALTER TABLE", alter_type),
@@ -129,6 +136,8 @@ impl<'a> fmt::Display for ParserError<'a> {
             Self::FromExpected(token) => format!("expected FROM keyword, got {}", token),
             Self::FromMissing => "expected FROM keyword, got nothing".to_string(),
             Self::LexerError(lexer_error) => format!("{}", lexer_error),
+            Self::MultipleConstraintsGiven => "only one constraint is allowed, but several were given".to_string(),
+            Self::NoConstraintsGiven => "no constraints were given".to_string(),
             Self::InvalidConstraint(tokens) =>
                 format!("cannot treat constraint sequence '{:?}'",
                         tokens.iter().map(|t| t.to_string()).collect::<Vec<String>>()),

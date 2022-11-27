@@ -100,7 +100,7 @@ where
     }
 }
 
-fn parse_constraint_tokens(tokens: Vec<&Token>) -> Result<Vec<Constraint>, ParserError> {
+pub fn parse_constraint_tokens(tokens: Vec<&Token>) -> Result<Vec<Constraint>, ParserError> {
     let mut iter = tokens.iter();
     let mut result = vec![];
 
