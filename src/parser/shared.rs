@@ -112,6 +112,12 @@ pub fn parse_constraint_tokens(tokens: Vec<&Token>) -> Result<Vec<Constraint>, P
                     _ => return Err(ParserError::InvalidConstraint(tokens)),
                 }
             },
+            Some(Token::Default) => {
+                match iter.next() {
+                    Some(Token::Value(value)) => result.push(Constraint::Default(value.clone())),
+                    _ => return Err(ParserError::InvalidConstraint(tokens)),
+                }
+            }
             None => break,
             _ => return Err(ParserError::InvalidConstraint(tokens)),
         }

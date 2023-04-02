@@ -44,13 +44,15 @@ impl ColumnType {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Constraint {
-    NotNull
+    NotNull,
+    Default(SqlValue),
 }
 
 impl fmt::Display for Constraint {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::NotNull => write!(f, "NOT NULL"),
+            Self::Default(value) => write!(f, "DEFAULT {}", value),
         }
     }
 }
@@ -138,6 +140,7 @@ impl Table {
             result_values[column_index] = value;
         }
         let indices: Vec<usize> = (0..result_values.len()).collect();
+        self.apply_defaults(&mut result_values, &indices);
         self.validate_constraints(&result_values, &indices)?;
 
         let row = Row::from_sql_values(result_values, &self.column_types)
@@ -304,12 +307,25 @@ impl Table {
         Ok(())
     }
 
+    fn apply_defaults(&self, column_values: &mut Vec<SqlValue>, column_indices: &[usize]) {
+        for (value_index, value) in column_values.iter_mut().enumerate() {
+            if *value == SqlValue::Null {
+                let column_index = column_indices[value_index];
+                match self.constraints[column_index].first() {
+                    Some(Constraint::Default(sql_value)) => { *value = sql_value.clone() },
+                    _ => { },
+                }
+            }
+        }
+    }
+
     fn check_value_over_constraint(&self, value: &SqlValue, constraint: &Constraint) -> Result<(), ()> {
         match constraint {
             Constraint::NotNull => match value {
                 SqlValue::Null => Err(()),
                 _ => Ok(()),
             },
+            Constraint::Default(_) => { Ok(()) },
         }
     }
 

@@ -488,12 +488,13 @@ mod tests {
 
     #[test]
     fn parse_valid_schema() {
-        let (table_name, column_definitions) = parse_schema_line("users id int not null, name string").unwrap();
+        let (table_name, column_definitions) = parse_schema_line("users id int not null default 1, name string").unwrap();
         assert_eq!(table_name, "users");
         assert_eq!(column_definitions[0].name.to_string(), "id");
         assert!(matches!(column_definitions[0].kind, ColumnType::Integer));
-        assert_eq!(column_definitions[0].constraints.len(), 1);
+        assert_eq!(column_definitions[0].constraints.len(), 2);
         assert!(matches!(column_definitions[0].constraints[0], Constraint::NotNull));
+        assert!(matches!(column_definitions[0].constraints[1], Constraint::Default(SqlValue::Integer(1))));
 
         assert_eq!(column_definitions[1].name.to_string(), "name");
         assert!(matches!(column_definitions[1].kind, ColumnType::String));
