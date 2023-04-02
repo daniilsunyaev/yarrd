@@ -311,12 +311,23 @@ impl Table {
         for (value_index, value) in column_values.iter_mut().enumerate() {
             if *value == SqlValue::Null {
                 let column_index = column_indices[value_index];
-                match self.constraints[column_index].first() {
-                    Some(Constraint::Default(sql_value)) => { *value = sql_value.clone() },
+                match self.default_constraint(column_index) {
+                    Some(sql_value) => { *value = sql_value.clone() },
                     _ => { },
                 }
             }
         }
+    }
+
+    fn default_constraint(&self, column_index: usize) -> Option<&SqlValue> {
+        for constraint in &self.constraints[column_index] {
+            match constraint {
+                Constraint::Default(ref sql_value) => return Some(sql_value),
+                _ => { }
+            }
+        }
+
+        None
     }
 
     fn check_value_over_constraint(&self, value: &SqlValue, constraint: &Constraint) -> Result<(), ()> {
