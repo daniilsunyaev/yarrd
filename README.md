@@ -114,7 +114,7 @@ Close database connection and exit from cmd interface.
 Querying syntax is similar to sql, but have no semicolon at the end.
 
 Supported statemes: `CREATE TABLE`, `DROP TABLE`, `INSERT INTO`, `SELECT`, `UPDATE`, `DELETE FROM`, `ALTER TABLE`, `VACUUM`.
-Supported constraints: `NOT NULL`.
+Supported constraints: `NOT NULL`, `DEFAULT`.
 
 `CREATE TABLE users (id INT NOT NULL, name STRING, age INT NOT NULL)`
 
@@ -210,6 +210,7 @@ Supported constraints: `NOT NULL`.
   - update hashtable on insert
   - update hashtable on delete
   - update hashtable on update
+- do not allow two columns with the same names in a table
 - implement unique constraint
 - implement primary constraint and use row_id if not set
 - introduce NOT
