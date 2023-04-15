@@ -33,6 +33,7 @@ pub enum Token {
     Is,
     Not,
     Constraint,
+    Default,
     Vacuum,
     IntegerType, // TODO: maybe extract types to separate enum
     StringType,
@@ -75,6 +76,7 @@ impl fmt::Display for Token {
             Self::Not => "NOT",
             Self::Vacuum => "VACUUM",
             Self::Constraint => "CONSTRAINT",
+            Self::Default => "DEFAULT",
             Self::IntegerType => "int",
             Self::StringType => "string",
             Self::FloatType => "float",
@@ -212,6 +214,7 @@ fn parse_token(str_token: &str) -> Token {
         "not" => Token::Not,
         "vacuum" => Token::Vacuum,
         "constraint" => Token::Constraint,
+        "default" => Token::Default,
         "int" => Token::IntegerType,
         "float" => Token::FloatType,
         "string" => Token::StringType,
@@ -239,7 +242,7 @@ mod tests {
 
     #[test]
     fn token_parse() {
-        let valid_input = "create TABLE,table_name RENAME Column not NULL add (row columnn type int float to string (,) ";
+        let valid_input = "create TABLE,table_name RENAME Column not NULL Default add (row columnn type int float to string (,) ";
         let another_valid_input = "token*from alter";
         let invalid_input = "create (row \"column, type\" int string\" yy ";
         let another_invalid_input = ";123abc";
@@ -250,8 +253,8 @@ mod tests {
             to_tokens(valid_input).unwrap(),
             vec![
                 Token::Create, Token::Table, Token::Comma, Token::Value(SqlValue::Identificator("table_name".into())),
-                Token::Rename, Token::Column, Token::Not, Token::Value(SqlValue::Null), Token::Add, Token::LeftParenthesis,
-                Token::Value(SqlValue::Identificator("row".into())),
+                Token::Rename, Token::Column, Token::Not, Token::Value(SqlValue::Null), Token::Default,
+                Token::Add, Token::LeftParenthesis, Token::Value(SqlValue::Identificator("row".into())),
                 Token::Value(SqlValue::Identificator("columnn".into())), Token::Value(SqlValue::Identificator("type".into())),
                 Token::IntegerType, Token::FloatType, Token::To, Token::StringType, Token::LeftParenthesis,
                 Token::Comma, Token::RightParenthesis

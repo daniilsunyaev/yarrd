@@ -44,13 +44,15 @@ impl ColumnType {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Constraint {
-    NotNull
+    NotNull,
+    Default(SqlValue),
 }
 
 impl fmt::Display for Constraint {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::NotNull => write!(f, "NOT NULL"),
+            Self::Default(value) => write!(f, "DEFAULT {}", value),
         }
     }
 }
@@ -61,6 +63,7 @@ pub struct Table {
     pub column_types: Vec<ColumnType>,
     pub column_names: Vec<String>,
     pub constraints: Vec<Vec<Constraint>>,
+    pub defaults: Vec<SqlValue>,
     pager: Pager,
 }
 
@@ -68,18 +71,36 @@ impl Table {
     pub fn new(table_filepath: PathBuf, name: &str, column_definitions: Vec<ColumnDefinition>) -> Result<Table, TableError> {
         let mut column_names = vec![];
         let mut column_types = vec![];
-        let mut constraints = vec![];
+        let mut constraints = vec![vec![]; column_definitions.len()];
+        let mut defaults = vec![SqlValue::Null; column_definitions.len()];
 
         for (i, column_definition) in column_definitions.into_iter().enumerate() {
             column_names.push(column_definition.name.to_string());
             column_types.push(column_definition.kind);
-            constraints.insert(i, column_definition.constraints);
+
+            for constraint in column_definition.constraints {
+                match constraint {
+                    Constraint::Default(value) => {
+                        if defaults[i] != SqlValue::Null {
+                            return Err(TableError::ConstraintAlreadyExists {
+                                table_name: name.to_string(),
+                                column_name: column_names[i].clone(),
+                                constraint: Constraint::Default(defaults[i].clone())
+                            })
+                        } else {
+                          defaults[i] = value;
+                        }
+                    },
+                    _ => constraints[i].push(constraint),
+                }
+            }
         }
         let row_size = Row::calculate_row_size(&column_types);
         let pager = Pager::new(table_filepath.as_path(), row_size)
             .map_err(TableError::CreateError)?;
+        // TODO: check that names do not duplicate
 
-        Ok(Self { name: name.to_string(), column_types, column_names, pager, constraints })
+        Ok(Self { name: name.to_string(), column_types, column_names, pager, constraints, defaults })
     }
 
     pub fn select(&mut self, select_column_names: Vec<SelectColumnName>, where_clause: Option<WhereClause>) -> Result<QueryResult, TableError> {
@@ -131,13 +152,10 @@ impl Table {
             None => &self.column_names,
         };
 
-        let column_indices = self.get_columns_indices(column_names)?;
-        self.validate_values_type(&values, &column_indices)?;
-        let mut result_values = vec![SqlValue::Null; self.column_types.len()];
-        for (value, column_index) in values.into_iter().zip(column_indices.into_iter()) {
-            result_values[column_index] = value;
-        }
-        let indices: Vec<usize> = (0..result_values.len()).collect();
+        let input_column_indices = self.get_columns_indices(column_names)?;
+        self.validate_values_type(&values, &input_column_indices)?;
+
+        let (result_values, indices) = self.apply_defaults(&values, &input_column_indices);
         self.validate_constraints(&result_values, &indices)?;
 
         let row = Row::from_sql_values(result_values, &self.column_types)
@@ -304,12 +322,24 @@ impl Table {
         Ok(())
     }
 
+    fn apply_defaults(&self, values: &[SqlValue], indices: &[usize]) -> (Vec<SqlValue>, Vec<usize>) {
+        let result_indices: Vec<usize> = (0..self.column_types.len()).collect();
+        let mut result_values = self.defaults.clone();
+
+        for (value, column_index) in values.iter().zip(indices.iter()) {
+            result_values[*column_index] = value.clone();
+        }
+
+        (result_values, result_indices)
+    }
+
     fn check_value_over_constraint(&self, value: &SqlValue, constraint: &Constraint) -> Result<(), ()> {
         match constraint {
             Constraint::NotNull => match value {
                 SqlValue::Null => Err(()),
                 _ => Ok(()),
             },
+            Constraint::Default(_) => { Ok(()) },
         }
     }
 
