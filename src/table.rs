@@ -78,11 +78,10 @@ impl Table {
             column_names.push(column_definition.name.to_string());
             column_types.push(column_definition.kind);
 
-            let mut default_provided = false;
             for constraint in column_definition.constraints {
                 match constraint {
                     Constraint::Default(value) => {
-                        if default_provided {
+                        if defaults[i] != SqlValue::Null {
                             return Err(TableError::ConstraintAlreadyExists {
                                 table_name: name.to_string(),
                                 column_name: column_names[i].clone(),
@@ -90,7 +89,6 @@ impl Table {
                             })
                         } else {
                           defaults[i] = value;
-                          default_provided = true;
                         }
                     },
                     _ => constraints[i].push(constraint),
@@ -326,9 +324,7 @@ impl Table {
 
     fn apply_defaults(&self, values: &[SqlValue], indices: &[usize]) -> (Vec<SqlValue>, Vec<usize>) {
         let result_indices: Vec<usize> = (0..self.column_types.len()).collect();
-        let mut result_values: Vec<SqlValue> = result_indices.iter()
-            .map(|i| self.defaults[*i].clone())
-            .collect();
+        let mut result_values = self.defaults.clone();
 
         for (value, column_index) in values.iter().zip(indices.iter()) {
             result_values[*column_index] = value.clone();

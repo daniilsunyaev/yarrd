@@ -150,7 +150,7 @@ mod tests {
                 ColumnDefinition {
                     name: SqlValue::Identificator("name".to_string()),
                     kind: ColumnType::String,
-                    constraints: vec![],
+                    constraints: vec![Constraint::Default(SqlValue::String("Doe".to_string()))],
                 }
             ],
         };
