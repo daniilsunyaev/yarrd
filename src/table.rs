@@ -7,7 +7,7 @@ use crate::lexer::SqlValue;
 use crate::row::Row;
 use crate::query_result::QueryResult;
 use crate::pager::Pager;
-use crate::where_clause::WhereFilter;
+use crate::row_check::RowCheck;
 use error::TableError;
 
 pub mod error;
@@ -266,7 +266,7 @@ impl Table {
 
     fn matching_rows(&mut self, where_clause: Option<WhereClause>) -> impl Iterator<Item = Result<(u64, Row), TableError>> + '_ {
         let where_filter = match where_clause {
-            None => WhereFilter::dummy(),
+            None => RowCheck::dummy(),
             Some(where_clause) => where_clause.compile(&self.column_types[..], &self.name, &self.column_names),
         };
 

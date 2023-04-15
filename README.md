@@ -203,8 +203,9 @@ Supported constraints: `NOT NULL`, `DEFAULT`.
 - ✗ add row_id to service bytes
 - ✓ implement not null constraint
 - ✓ allow to update constraints
-- implement default constraint
+- ✓ implement default constraint
 - implement check constraint
+- `SELECT id FROM users WHERE "users.name" = name` should not return all records
 - implement create index
   - store hashtable for primary keys at the beginning of file or store those in root database file
   - update hashtable on insert
@@ -212,7 +213,9 @@ Supported constraints: `NOT NULL`, `DEFAULT`.
   - update hashtable on update
 - do not allow two columns with the same names in a table
 - implement unique constraint
+- introduce AND and allow WHERE to accept multiple conditions
 - implement primary constraint and use row_id if not set
+- check if we can avoid generating byte layout for every row when using where
 - introduce NOT
 - remove tables dir if it is empty after tables cleanup
 - maybe use peek and rewrite parser in more of decoupeled manner? Try to allow keyword names
