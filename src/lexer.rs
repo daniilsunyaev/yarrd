@@ -34,6 +34,7 @@ pub enum Token {
     Not,
     Constraint,
     Default,
+    Check,
     Vacuum,
     IntegerType, // TODO: maybe extract types to separate enum
     StringType,
@@ -77,6 +78,7 @@ impl fmt::Display for Token {
             Self::Vacuum => "VACUUM",
             Self::Constraint => "CONSTRAINT",
             Self::Default => "DEFAULT",
+            Self::Check => "CHECK",
             Self::IntegerType => "int",
             Self::StringType => "string",
             Self::FloatType => "float",
@@ -215,6 +217,7 @@ fn parse_token(str_token: &str) -> Token {
         "vacuum" => Token::Vacuum,
         "constraint" => Token::Constraint,
         "default" => Token::Default,
+        "check" => Token::Check,
         "int" => Token::IntegerType,
         "float" => Token::FloatType,
         "string" => Token::StringType,
@@ -243,7 +246,7 @@ mod tests {
     #[test]
     fn token_parse() {
         let valid_input = "create TABLE,table_name RENAME Column not NULL Default add (row columnn type int float to string (,) ";
-        let another_valid_input = "token*from alter";
+        let another_valid_input = "token*from alter CHECK foo ( < 2)";
         let invalid_input = "create (row \"column, type\" int string\" yy ";
         let another_invalid_input = ";123abc";
 
@@ -261,7 +264,11 @@ mod tests {
             ]
         );
         assert_eq!(to_tokens(another_valid_input).unwrap(),
-            vec![Token::Value(SqlValue::Identificator("token".to_string())), Token::AllColumns, Token::From, Token::Alter]);
+            vec![
+                Token::Value(SqlValue::Identificator("token".to_string())), Token::AllColumns, Token::From, Token::Alter,
+                Token::Check, Token::Value(SqlValue::Identificator("foo".into())), Token::LeftParenthesis,
+                Token::Less, Token::Value(SqlValue::Integer(2)), Token::RightParenthesis
+            ]);
 
         assert!(matches!(to_tokens(invalid_input), Err(LexerError::IncompleteString)));
         assert!(matches!(

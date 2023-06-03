@@ -30,7 +30,7 @@ impl fmt::Display for CmpError {
 
 impl Error for CmpError { }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum CmpOperator {
     Less,
     Greater,

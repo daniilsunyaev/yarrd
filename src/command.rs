@@ -1,6 +1,6 @@
 use crate::table::{ColumnType, Constraint};
 use crate::lexer::SqlValue;
-use crate::where_clause::WhereClause;
+use crate::binary_condition::BinaryCondition;
 
 #[derive(Debug)]
 pub enum SelectColumnName {
@@ -12,7 +12,7 @@ pub enum SelectColumnName {
 pub struct ColumnDefinition {
     pub name: SqlValue,
     pub kind: ColumnType, // TODO: maybe use token instead, transition to sematic types should be on exec stage?
-    pub constraints: Vec<Constraint>,
+    pub column_constraints: Vec<Constraint>,
 }
 
 #[derive(Debug)]
@@ -31,16 +31,16 @@ pub enum Command {
     Select {
         table_name: SqlValue,
         column_names: Vec<SelectColumnName>,
-        where_clause: Option<WhereClause>,
+        where_clause: Option<BinaryCondition>,
     },
     Update {
         table_name: SqlValue,
         field_assignments: Vec<FieldAssignment>,
-        where_clause: Option<WhereClause>,
+        where_clause: Option<BinaryCondition>,
     },
     Delete {
         table_name: SqlValue,
-        where_clause: Option<WhereClause>,
+        where_clause: Option<BinaryCondition>,
     },
     CreateTable {
         table_name: SqlValue,
@@ -102,17 +102,17 @@ mod tests {
                 ColumnDefinition {
                     name: SqlValue::Identificator("id".to_string()),
                     kind: ColumnType::Integer,
-                    constraints: vec![],
+                    column_constraints: vec![],
                 },
                 ColumnDefinition {
                     name: SqlValue::Identificator("score".to_string()),
                     kind: ColumnType::Float,
-                    constraints: vec![],
+                    column_constraints: vec![],
                 },
                 ColumnDefinition {
                     name: SqlValue::String("name full".to_string()),
                     kind: ColumnType::String,
-                    constraints: vec![],
+                    column_constraints: vec![],
                 },
             ],
         };
@@ -139,18 +139,24 @@ mod tests {
     #[test]
     fn insert_with_constraints_and_select_from_table() {
         let (_db_file, mut database) = open_test_database();
+        let id_greater_than_zero = BinaryCondition {
+            left_value: SqlValue::String("id".to_string()),
+            operator: CmpOperator::Greater,
+            right_value: SqlValue::Integer(0)
+        };
+
         let create_table = Command::CreateTable {
             table_name: SqlValue::Identificator("users".to_string()),
             columns: vec![
                 ColumnDefinition {
                     name: SqlValue::Identificator("id".to_string()),
                     kind: ColumnType::Integer,
-                    constraints: vec![Constraint::NotNull],
+                    column_constraints: vec![Constraint::NotNull, Constraint::Check(id_greater_than_zero)],
                 },
                 ColumnDefinition {
                     name: SqlValue::Identificator("name".to_string()),
                     kind: ColumnType::String,
-                    constraints: vec![Constraint::Default(SqlValue::String("Doe".to_string()))],
+                    column_constraints: vec![Constraint::Default(SqlValue::String("Doe".to_string()))],
                 }
             ],
         };
@@ -174,10 +180,20 @@ mod tests {
         assert_eq!(format!("{}", insert_into_table_result.err().unwrap()),
             "value NULL violates 'NOT NULL' constraint on column 'id' from table 'users'");
 
+        let insert_into_table = Command::InsertInto {
+            table_name: SqlValue::Identificator("users".to_string()),
+            column_names: Some(vec![SqlValue::Identificator("id".to_string()), SqlValue::String("name".to_string())]),
+            values: vec![SqlValue::Integer(0), SqlValue::Identificator("John".to_string())],
+        };
+        let insert_into_table_result = database.execute(insert_into_table);
+        assert!(insert_into_table_result.is_err());
+        assert_eq!(format!("{}", insert_into_table_result.err().unwrap()),
+            "row 0 violates 'column 0 > 0' constraint from table 'users'");
+
         let select_from_table = Command::Select {
             table_name: SqlValue::Identificator("users".to_string()),
             column_names: vec![SelectColumnName::AllColumns, SelectColumnName::Name(SqlValue::Identificator("id".to_string()))],
-            where_clause: Some(WhereClause {
+            where_clause: Some(BinaryCondition {
                 left_value: SqlValue::Integer(1),
                 right_value: SqlValue::String("users.id".to_string()),
                 operator: CmpOperator::Equals,
@@ -209,12 +225,12 @@ mod tests {
                 ColumnDefinition {
                     name: SqlValue::Identificator("id".to_string()),
                     kind: ColumnType::Integer,
-                    constraints: vec![],
+                    column_constraints: vec![],
                 },
                 ColumnDefinition {
                     name: SqlValue::Identificator("name".to_string()),
                     kind: ColumnType::String,
-                    constraints: vec![],
+                    column_constraints: vec![],
                 }
             ],
         };
@@ -260,12 +276,12 @@ mod tests {
                 ColumnDefinition {
                     name: SqlValue::Identificator("id".to_string()),
                     kind: ColumnType::Integer,
-                    constraints: vec![],
+                    column_constraints: vec![],
                 },
                 ColumnDefinition {
                     name: SqlValue::Identificator("name".to_string()),
                     kind: ColumnType::String,
-                    constraints: vec![],
+                    column_constraints: vec![],
                 }
             ],
         };
@@ -281,7 +297,7 @@ mod tests {
 
         let delete_from_table = Command::Delete {
             table_name: SqlValue::Identificator("users".to_string()),
-            where_clause: Some(WhereClause {
+            where_clause: Some(BinaryCondition {
                 left_value: SqlValue::String("John".to_string()),
                 right_value: SqlValue::String("name".to_string()),
                 operator: CmpOperator::Equals,
@@ -312,7 +328,7 @@ mod tests {
                 ColumnDefinition {
                     name: SqlValue::Identificator("id".to_string()),
                     kind: ColumnType::Integer,
-                    constraints: vec![],
+                    column_constraints: vec![],
                 },
             ],
         };
@@ -352,7 +368,7 @@ mod tests {
                 ColumnDefinition {
                     name: SqlValue::Identificator("id".to_string()),
                     kind: ColumnType::Integer,
-                    constraints: vec![],
+                    column_constraints: vec![],
                 },
             ],
         };
@@ -377,7 +393,7 @@ mod tests {
                 ColumnDefinition {
                     name: SqlValue::Identificator("id".to_string()),
                     kind: ColumnType::Integer,
-                    constraints: vec![Constraint::NotNull],
+                    column_constraints: vec![Constraint::NotNull],
                 },
             ]
         };
@@ -389,7 +405,7 @@ mod tests {
             column_definition: ColumnDefinition {
                 name: SqlValue::String("name".to_string()),
                 kind: ColumnType::String,
-                constraints: vec![],
+                column_constraints: vec![],
             },
         };
 
@@ -405,12 +421,12 @@ mod tests {
                 ColumnDefinition {
                     name: SqlValue::Identificator("id".to_string()),
                     kind: ColumnType::Integer,
-                    constraints: vec![],
+                    column_constraints: vec![],
                 },
                 ColumnDefinition {
                     name: SqlValue::Identificator("name".to_string()),
                     kind: ColumnType::String,
-                    constraints: vec![],
+                    column_constraints: vec![],
                 },
             ],
         };
@@ -434,12 +450,12 @@ mod tests {
                 ColumnDefinition {
                     name: SqlValue::Identificator("id".to_string()),
                     kind: ColumnType::Integer,
-                    constraints: vec![],
+                    column_constraints: vec![],
                 },
                 ColumnDefinition {
                     name: SqlValue::Identificator("name".to_string()),
                     kind: ColumnType::String,
-                    constraints: vec![],
+                    column_constraints: vec![],
                 },
             ],
         };
@@ -461,7 +477,7 @@ mod tests {
 
         let delete_from_table = Command::Delete {
             table_name: SqlValue::Identificator("users".to_string()),
-            where_clause: Some(WhereClause {
+            where_clause: Some(BinaryCondition {
                 left_value: SqlValue::String("id".to_string()),
                 right_value: SqlValue::Integer(1),
                 operator: CmpOperator::Equals,
@@ -479,7 +495,7 @@ mod tests {
 
         let delete_from_table = Command::Delete {
             table_name: SqlValue::Identificator("users".to_string()),
-            where_clause: Some(WhereClause {
+            where_clause: Some(BinaryCondition {
                 left_value: SqlValue::String("id".to_string()),
                 right_value: SqlValue::Integer(15),
                 operator: CmpOperator::LessEquals,

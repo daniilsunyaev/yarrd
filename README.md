@@ -204,7 +204,7 @@ Supported constraints: `NOT NULL`, `DEFAULT`.
 - ✓ implement not null constraint
 - ✓ allow to update constraints
 - ✓ implement default constraint
-- implement check constraint
+- ✓ implement check constraint
 - `SELECT id FROM users WHERE "users.name" = name` should not return all records
 - implement create index
   - store hashtable for primary keys at the beginning of file or store those in root database file
@@ -215,6 +215,7 @@ Supported constraints: `NOT NULL`, `DEFAULT`.
 - implement unique constraint
 - introduce AND and allow WHERE to accept multiple conditions
 - implement primary constraint and use row_id if not set
+- think if we should rename 'validate_row_over_constraint' to smth like "check_not_null_constraints"
 - check if we can avoid generating byte layout for every row when using where
 - introduce NOT
 - remove tables dir if it is empty after tables cleanup

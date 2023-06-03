@@ -13,7 +13,7 @@ mod parser;
 mod database;
 mod row; // TODO: maybe put it inside database or table?
 mod query_result;
-mod where_clause;
+mod binary_condition;
 mod row_check;
 mod connection;
 mod execution_error;

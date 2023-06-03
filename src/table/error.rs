@@ -7,6 +7,8 @@ use crate::table::Constraint;
 use crate::lexer::SqlValue;
 use crate::serialize::SerDeError;
 use crate::cmp_operator::CmpError;
+use crate::row::Row;
+use crate::row_check::RowCheck;
 
 #[derive(Debug)]
 pub enum TableError {
@@ -24,7 +26,8 @@ pub enum TableError {
     VacuumFailed(PagerError),
     ConstraintAlreadyExists { table_name: String, column_name: String, constraint: Constraint },
     ConstraintNotExists { table_name: String, column_name: String, constraint: Constraint },
-    ConstraintViolation { table_name: String, constraint: Constraint, column_name: String, value: SqlValue },
+    ColumnConstraintViolation { table_name: String, constraint: Constraint, column_name: String, value: SqlValue },
+    CheckViolation { table_name: String, constraint: RowCheck, row: Row },
 }
 
 impl fmt::Display for TableError {
@@ -51,10 +54,14 @@ impl fmt::Display for TableError {
                 write!(f, "table's '{}' column '{}' already has constraint '{}'", table_name, column_name, constraint),
             Self::ConstraintNotExists { table_name, column_name, constraint } =>
                 write!(f, "table's '{}' column '{}' does not have constraint '{}'", table_name, column_name, constraint),
-            Self::ConstraintViolation { table_name, constraint, column_name, value } =>
+            Self::ColumnConstraintViolation { table_name, constraint, column_name, value } =>
                 write!(f,
                     "value {} violates '{}' constraint on column '{}' from table '{}'",
                     value, constraint, column_name, table_name),
+            Self::CheckViolation { table_name, constraint: check, row } =>
+                write!(f,
+                    "row {} violates '{}' constraint from table '{}'",
+                    row, check, table_name),
         }
     }
 }
