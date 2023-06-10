@@ -188,7 +188,7 @@ mod tests {
         let insert_into_table_result = database.execute(insert_into_table);
         assert!(insert_into_table_result.is_err());
         assert_eq!(format!("{}", insert_into_table_result.err().unwrap()),
-            "row 0 violates 'column 0 > 0' constraint from table 'users'");
+            "row 0 violates 'check (column 0 > 0)' constraint from table 'users'");
 
         let select_from_table = Command::Select {
             table_name: SqlValue::Identificator("users".to_string()),

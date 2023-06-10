@@ -392,7 +392,7 @@ impl Table {
                 false => return Err(
                     TableError::CheckViolation {
                         table_name: table_headers.name.to_string(),
-                        constraint: check.clone(),
+                        row_check: check.clone(),
                         row: row.clone(),
                     }),
             }

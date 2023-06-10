@@ -27,7 +27,7 @@ pub enum TableError {
     ConstraintAlreadyExists { table_name: String, column_name: String, constraint: Constraint },
     ConstraintNotExists { table_name: String, column_name: String, constraint: Constraint },
     ColumnConstraintViolation { table_name: String, constraint: Constraint, column_name: String, value: SqlValue },
-    CheckViolation { table_name: String, constraint: RowCheck, row: Row },
+    CheckViolation { table_name: String, row_check: RowCheck, row: Row },
 }
 
 impl fmt::Display for TableError {
@@ -58,10 +58,10 @@ impl fmt::Display for TableError {
                 write!(f,
                     "value {} violates '{}' constraint on column '{}' from table '{}'",
                     value, constraint, column_name, table_name),
-            Self::CheckViolation { table_name, constraint: check, row } =>
+            Self::CheckViolation { table_name, row_check, row } =>
                 write!(f,
-                    "row {} violates '{}' constraint from table '{}'",
-                    row, check, table_name),
+                    "row {} violates 'check ({})' constraint from table '{}'",
+                    row, row_check, table_name),
         }
     }
 }
