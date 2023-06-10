@@ -170,6 +170,8 @@ mod tests {
     use super::*;
     use crate::lexer::SqlValue;
     use crate::table::{ColumnType, Constraint};
+    use crate::binary_condition::BinaryCondition;
+    use crate::cmp_operator::CmpOperator;
 
     #[test]
     fn insert_with_column_names() {
@@ -191,9 +193,17 @@ mod tests {
         let input = vec![
                 Token::Create, Token::Table, Token::Value(SqlValue::Identificator("table_name".into())),
                 Token::LeftParenthesis,
-                Token::Value(SqlValue::String("first_name".into())), Token::StringType, Token::Not, Token::Value(SqlValue::Null), Token::Comma,
+                Token::Value(SqlValue::String("first_name".into())),
+                Token::StringType, Token::Not, Token::Value(SqlValue::Null), Token::Comma,
+
                 Token::Value(SqlValue::Identificator("id".into())), Token::IntegerType, Token::Comma,
+
                 Token::Value(SqlValue::Identificator("age".into())), Token::FloatType,
+                Token::Check, Token::LeftParenthesis,
+                Token::Value(SqlValue::Identificator("age".into())), Token::Greater,
+                Token::Value(SqlValue::Identificator("0".into())),
+                Token::RightParenthesis,
+
                 Token::RightParenthesis,
            ];
 
@@ -233,7 +243,6 @@ mod tests {
                 Token::From,  Token::Value(SqlValue::Identificator("table_name".into())),
            ];
 
-        println!("{:?}", parse_statement(input.iter()));
         assert!(parse_statement(input.iter()).is_ok());
     }
 
@@ -488,17 +497,27 @@ mod tests {
 
     #[test]
     fn parse_valid_schema() {
-        let (table_name, column_definitions) = parse_schema_line("users id int not null default 1, name string").unwrap();
+        let (table_name, column_definitions) = parse_schema_line("users id int not null default 1 check(id > 0), name string").unwrap();
         assert_eq!(table_name, "users");
         assert_eq!(column_definitions[0].name.to_string(), "id");
         assert!(matches!(column_definitions[0].kind, ColumnType::Integer));
-        assert_eq!(column_definitions[0].constraints.len(), 2);
-        assert!(matches!(column_definitions[0].constraints[0], Constraint::NotNull));
-        assert!(matches!(column_definitions[0].constraints[1], Constraint::Default(SqlValue::Integer(1))));
+        assert_eq!(column_definitions[0].column_constraints.len(), 3);
+        assert!(matches!(column_definitions[0].column_constraints[0], Constraint::NotNull));
+        assert!(matches!(column_definitions[0].column_constraints[1], Constraint::Default(SqlValue::Integer(1))));
+
+        assert_eq!(column_definitions[0].column_constraints[2],
+                   Constraint::Check(
+                       BinaryCondition {
+                           left_value: SqlValue::Identificator("id".to_string()),
+                           right_value: SqlValue::Integer(0),
+                           operator: CmpOperator::Greater,
+                       }
+                   )
+                  );
 
         assert_eq!(column_definitions[1].name.to_string(), "name");
         assert!(matches!(column_definitions[1].kind, ColumnType::String));
-        assert_eq!(column_definitions[1].constraints.len(), 0);
+        assert_eq!(column_definitions[1].column_constraints.len(), 0);
     }
 
     #[test]

@@ -3,6 +3,8 @@ use crate::serialize::{deserialize, serialize_into, SerDeError};
 use crate::lexer::SqlValue;
 use byte_layout::ByteLayout;
 
+use std::fmt;
+
 mod byte_layout;
 
 pub const NUMBER_SIZE: usize = 8; // int and float stored in 8 bytes
@@ -12,9 +14,17 @@ pub const STRING_SIZE: usize = 256; // strings are stored in 256 bytes
 /// Is it simple, so it does not check if provided bytes match column types,
 /// and that source has correct byte size to read - this all table's responsibility.
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Row {
     bytes: Vec<u8>,
+}
+
+// This is temporary formatter assuming that first column is id, it should be rewritten
+// when pretty output of queries will be implemented
+impl fmt::Display for Row {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.get_cell_sql_value(&[ColumnType::Integer], 0).unwrap())
+    }
 }
 
 impl Row {

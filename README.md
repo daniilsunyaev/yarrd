@@ -137,6 +137,7 @@ Supported constraints: `NOT NULL`, `DEFAULT`.
 `Drop table users`
 
 ## Checklist
+
 - ✓ add prompt
 - ✓ add basic lexer
 - ✓ add basic parser
@@ -203,8 +204,9 @@ Supported constraints: `NOT NULL`, `DEFAULT`.
 - ✗ add row_id to service bytes
 - ✓ implement not null constraint
 - ✓ allow to update constraints
-- implement default constraint
-- implement check constraint
+- ✓ implement default constraint
+- ✓ implement check constraint
+- `SELECT id FROM users WHERE "users.name" = name` should not return all records
 - implement create index
   - store hashtable for primary keys at the beginning of file or store those in root database file
   - update hashtable on insert
@@ -212,7 +214,10 @@ Supported constraints: `NOT NULL`, `DEFAULT`.
   - update hashtable on update
 - do not allow two columns with the same names in a table
 - implement unique constraint
+- introduce AND and allow WHERE to accept multiple conditions
 - implement primary constraint and use row_id if not set
+- think if we should rename 'validate_row_over_constraint' to smth like "check_not_null_constraints"
+- check if we can avoid generating byte layout for every row when using where
 - introduce NOT
 - remove tables dir if it is empty after tables cleanup
 - maybe use peek and rewrite parser in more of decoupeled manner? Try to allow keyword names
@@ -221,6 +226,7 @@ Supported constraints: `NOT NULL`, `DEFAULT`.
 - implement limit
 - `insert into users (id) values (1,2)` should not crash but show an error instead
 - implement joins
+- fix result_large_err clippy warnings
 - pressing up should restore previous command
 - make table recreation incremental (insead of full select from old table)
 - current command should be editable (left and right should reposition input cursor)

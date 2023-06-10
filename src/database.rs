@@ -4,7 +4,7 @@ use std::fs::{self, File, OpenOptions};
 use std::path::{Path, PathBuf};
 
 use crate::command::{Command, ColumnDefinition, FieldAssignment, SelectColumnName};
-use crate::where_clause::WhereClause;
+use crate::binary_condition::BinaryCondition;
 use crate::lexer::SqlValue;
 use crate::table::{Table, ColumnType, Constraint};
 use crate::execution_error::ExecutionError;
@@ -40,7 +40,7 @@ impl Database {
         for line in reader.lines() {
             let line = line?;
             let table = Self::parse_schema_line(tables_dir.as_path(), line.trim())?;
-            tables.insert(table.name.clone(), table);
+            tables.insert(table.name().to_string(), table);
         }
 
         Ok(Self { tables, database_filepath: PathBuf::from(database_filepath), tables_dir })
@@ -57,17 +57,13 @@ impl Database {
         let mut database_file = File::create(database_filepath.clone())?;
 
         if !tables_dir.exists() {
-            match fs::create_dir(tables_dir.clone()) {
-                Err(create_tables_dir_error) => {
-                    fs::remove_file(database_filepath.as_path())
-                        .unwrap_or_else(|_| panic!(
-                                "failed to create tables dir: {}, failed to remove database file '{}', try to remove it manually",
-                                create_tables_dir_error, database_filepath.to_str().unwrap()
+            if let Err(create_tables_dir_error) = fs::create_dir(tables_dir.clone()) {
+                fs::remove_file(database_filepath.as_path())
+                    .unwrap_or_else(|_| panic!(
+                            "failed to create tables dir: {}, failed to remove database file '{}', try to remove it manually",
+                            create_tables_dir_error, database_filepath.to_str().unwrap()
                             ));
-                    return Err(MetaCommandError::IoError(create_tables_dir_error))
-
-                },
-                Ok(()) => { },
+                return Err(MetaCommandError::IoError(create_tables_dir_error))
             }
         }
 
@@ -116,13 +112,13 @@ impl Database {
         writeln!(database_file, "{}", self.tables_dir.to_str().unwrap()).unwrap();
         for (table_name, table) in &self.tables {
             write!(database_file, "{}", table_name).unwrap();
-            for i in 0..table.column_types.len() {
-                write!(database_file, " {} {}", table.column_names[i], table.column_types[i]).unwrap();
-                for constraint in &table.constraints[i] {
+            for i in 0..table.column_types().len() {
+                write!(database_file, " {} {}", table.column_names()[i], table.column_types()[i]).unwrap();
+                for constraint in &table.column_constraints()[i] {
                     write!(database_file, " {}", constraint).unwrap();
                 }
 
-                if i < table.column_types.len() - 1 {
+                if i < table.column_types().len() - 1 {
                     write!(database_file, ",").unwrap();
                 }
 
@@ -192,7 +188,7 @@ impl Database {
         }
     }
 
-    fn select_rows(&mut self, table_name: SqlValue, column_names: Vec<SelectColumnName>, where_clause: Option<WhereClause>) -> Result<Option<QueryResult>, ExecutionError> {
+    fn select_rows(&mut self, table_name: SqlValue, column_names: Vec<SelectColumnName>, where_clause: Option<BinaryCondition>) -> Result<Option<QueryResult>, ExecutionError> {
         let table = self.get_table(&table_name)?;
 
         Ok(Some(table.select(column_names, where_clause)?))
@@ -210,13 +206,13 @@ impl Database {
         Ok(None)
     }
 
-    fn update_rows(&mut self, table_name: SqlValue, field_assignments: Vec<FieldAssignment>, where_clause: Option<WhereClause>) -> Result<Option<QueryResult>, ExecutionError> {
+    fn update_rows(&mut self, table_name: SqlValue, field_assignments: Vec<FieldAssignment>, where_clause: Option<BinaryCondition>) -> Result<Option<QueryResult>, ExecutionError> {
         let table = self.get_table(&table_name)?;
         table.update(field_assignments, where_clause)?;
         Ok(None)
     }
 
-    fn delete_rows(&mut self, table_name: SqlValue, where_clause: Option<WhereClause>) -> Result<Option<QueryResult>, ExecutionError> {
+    fn delete_rows(&mut self, table_name: SqlValue, where_clause: Option<BinaryCondition>) -> Result<Option<QueryResult>, ExecutionError> {
         let table = self.get_table(&table_name)?;
 
         table.delete(where_clause)?;
@@ -240,7 +236,7 @@ impl Database {
                 Err(io_error.into())
             },
             Ok(_) => {
-                table.name = new_table_name_string.clone();
+                table.set_name(&new_table_name_string);
                 self.tables.insert(new_table_name_string, table);
                 Ok(None)
             }
@@ -284,7 +280,7 @@ impl Database {
     fn add_table_column(&mut self, table_name: SqlValue, column_definition: ColumnDefinition) -> Result<Option<QueryResult>, ExecutionError> {
         let table = self.get_table(&table_name)?;
         let mut new_column_definitions = table.column_definitions();
-        let table_column_types = table.column_types.clone();
+        let table_column_types = table.column_types().to_vec();
         new_column_definitions.push(column_definition);
         let temp_new_table_name = Self::temporary_table_name(&table_name);
         self.create_table(temp_new_table_name.clone(), new_column_definitions)?;
@@ -365,7 +361,7 @@ impl Database {
         let table = self.get_table(&table_name)?;
         let droped_column_index = table.column_index_result(column_name.to_string().as_str())?;
         let mut new_column_definitions = table.column_definitions();
-        let table_column_types = table.column_types.clone();
+        let table_column_types = table.column_types().to_vec();
         new_column_definitions.remove(droped_column_index);
         let temp_new_table_name = Self::temporary_table_name(&table_name);
         self.create_table(temp_new_table_name.clone(), new_column_definitions)?;

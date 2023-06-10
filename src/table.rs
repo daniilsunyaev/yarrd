@@ -2,12 +2,12 @@ use std::fmt;
 use std::path::PathBuf;
 
 use crate::command::{ColumnDefinition, FieldAssignment, SelectColumnName};
-use crate::where_clause::WhereClause;
+use crate::binary_condition::BinaryCondition;
 use crate::lexer::SqlValue;
 use crate::row::Row;
 use crate::query_result::QueryResult;
 use crate::pager::Pager;
-use crate::where_clause::WhereFilter;
+use crate::row_check::RowCheck;
 use error::TableError;
 
 pub mod error;
@@ -46,6 +46,7 @@ impl ColumnType {
 pub enum Constraint {
     NotNull,
     Default(SqlValue),
+    Check(BinaryCondition),
 }
 
 impl fmt::Display for Constraint {
@@ -53,17 +54,24 @@ impl fmt::Display for Constraint {
         match self {
             Self::NotNull => write!(f, "NOT NULL"),
             Self::Default(value) => write!(f, "DEFAULT {}", value),
+            Self::Check(row_check) => write!(f, "CHECK ({})", row_check),
         }
     }
 }
 
 #[derive(Debug)]
-pub struct Table {
+struct TableHeaders {
     pub name: String,
     pub column_types: Vec<ColumnType>,
     pub column_names: Vec<String>,
-    pub constraints: Vec<Vec<Constraint>>,
+    pub column_constraints: Vec<Vec<Constraint>>,
     pub defaults: Vec<SqlValue>,
+    checks: Vec<RowCheck>,
+}
+
+#[derive(Debug)]
+pub struct Table {
+    headers: TableHeaders,
     pager: Pager,
 }
 
@@ -71,14 +79,14 @@ impl Table {
     pub fn new(table_filepath: PathBuf, name: &str, column_definitions: Vec<ColumnDefinition>) -> Result<Table, TableError> {
         let mut column_names = vec![];
         let mut column_types = vec![];
-        let mut constraints = vec![vec![]; column_definitions.len()];
+        let mut column_constraints = vec![vec![]; column_definitions.len()];
         let mut defaults = vec![SqlValue::Null; column_definitions.len()];
 
         for (i, column_definition) in column_definitions.into_iter().enumerate() {
             column_names.push(column_definition.name.to_string());
             column_types.push(column_definition.kind);
 
-            for constraint in column_definition.constraints {
+            for constraint in column_definition.column_constraints {
                 match constraint {
                     Constraint::Default(value) => {
                         if defaults[i] != SqlValue::Null {
@@ -91,19 +99,53 @@ impl Table {
                           defaults[i] = value;
                         }
                     },
-                    _ => constraints[i].push(constraint),
+                    _ => column_constraints[i].push(constraint),
                 }
             }
         }
         let row_size = Row::calculate_row_size(&column_types);
         let pager = Pager::new(table_filepath.as_path(), row_size)
             .map_err(TableError::CreateError)?;
-        // TODO: check that names do not duplicate
+        let headers = TableHeaders {
+            name: name.to_string(),
+            checks: vec![],
+            column_types,
+            column_names,
+            column_constraints,
+            defaults
+        };
 
-        Ok(Self { name: name.to_string(), column_types, column_names, pager, constraints, defaults })
+        let mut table = Self { pager, headers };
+        table.compile_checks();
+
+        Ok(table)
     }
 
-    pub fn select(&mut self, select_column_names: Vec<SelectColumnName>, where_clause: Option<WhereClause>) -> Result<QueryResult, TableError> {
+    pub fn column_types(&self) -> &[ColumnType] {
+        &self.headers.column_types
+    }
+
+    pub fn column_names(&self) -> &[String] {
+        &self.headers.column_names
+    }
+
+    pub fn name(&self) -> &str {
+        &self.headers.name
+    }
+
+    pub fn set_name(&mut self, name: &str) {
+        self.headers.name = name.to_string();
+    }
+
+    pub fn column_constraints(&self) -> &[Vec<Constraint>] {
+        &self.headers.column_constraints
+    }
+
+    pub fn defaults(&self) -> &[SqlValue] {
+        &self.headers.defaults
+    }
+
+    pub fn select(&mut self, select_column_names: Vec<SelectColumnName>, where_clause: Option<BinaryCondition>) -> Result<QueryResult, TableError> {
         let mut result_column_names = vec![];
         let mut result_column_types = vec![];
         let mut result_column_indices = vec![];
@@ -113,30 +155,28 @@ impl Table {
                 SelectColumnName::Name(column_name) => {
                     let column_name = column_name.to_string();
                     let column_index = self.column_index_result(&column_name)?;
-                    let column_type = *self.column_types.get(column_index)
-                        .ok_or(TableError::ColumnNthNotExist { column_index, table_name: self.name.clone() })?;
+                    let column_type = *self.column_types().get(column_index)
+                        .ok_or(TableError::ColumnNthNotExist { column_index, table_name: self.name().to_string() })?;
                     result_column_names.push(column_name);
                     result_column_types.push(column_type);
                     result_column_indices.push(column_index);
                 },
                 SelectColumnName::AllColumns => {
-                    result_column_names.extend_from_slice(&self.column_names[..]);
-                    result_column_types.extend_from_slice(&self.column_types[..]);
-                    for i in 0..self.column_types.len() { result_column_indices.push(i) };
+                    result_column_names.extend_from_slice(self.column_names());
+                    result_column_types.extend_from_slice(self.column_types());
+                    for i in 0..self.column_types().len() { result_column_indices.push(i) };
                 }
             }
         }
 
-        // need to clone because of borrow checker
         let mut result = QueryResult { column_names: result_column_names, column_types: result_column_types.clone(), rows: vec![] };
-        let column_types = self.column_types.clone();
 
-        for row_check in self.matching_rows(where_clause) {
+        for row_check in Self::matching_rows(&mut self.pager, &self.headers, where_clause) {
             let (_row_number, row) = row_check?;
             let result_row = result.spawn_row();
 
             for (i, column_index) in result_column_indices.iter().enumerate() {
-                let column_values_data = row.get_cell_bytes(&column_types, *column_index);
+                let column_values_data = row.get_cell_bytes(&self.headers.column_types, *column_index);
                 let column_is_null = row.cell_is_null(*column_index);
                 result_row.set_cell_bytes(&result_column_types, i, column_values_data, column_is_null)
                     .map_err(TableError::CannotSetCell)?
@@ -149,40 +189,42 @@ impl Table {
     pub fn insert(&mut self, column_names: Option<Vec<String>>, values: Vec<SqlValue>) -> Result<(), TableError> {
         let column_names = match &column_names {
             Some(column_names) => column_names,
-            None => &self.column_names,
+            None => self.column_names(),
         };
 
         let input_column_indices = self.get_columns_indices(column_names)?;
         self.validate_values_type(&values, &input_column_indices)?;
 
-        let (result_values, indices) = self.apply_defaults(&values, &input_column_indices);
-        self.validate_constraints(&result_values, &indices)?;
+        let (result_values, _indices) = self.apply_defaults(&values, &input_column_indices);
 
-        let row = Row::from_sql_values(result_values, &self.column_types)
+        let row = Row::from_sql_values(result_values, self.column_types())
             .map_err(TableError::CannotGetCell)?;
+
+        Self::validate_constraints(&self.headers, &row)?;
 
         self.pager.insert_row(row).map_err(TableError::CannotInsertRow)
     }
 
-    pub fn update(&mut self, field_assignments: Vec<FieldAssignment>, where_clause: Option<WhereClause>) -> Result<(), TableError> {
+    pub fn update(&mut self, field_assignments: Vec<FieldAssignment>, where_clause: Option<BinaryCondition>) -> Result<(), TableError> {
         let (column_names, column_values): (Vec<String>, Vec<SqlValue>) = field_assignments.into_iter()
             .map(|assignment| (assignment.column_name, assignment.value))
             .unzip();
 
         let column_indices = self.get_columns_indices(&column_names)?;
-        let column_types = self.column_types.clone(); // need to clone this because of borrow checker
         self.validate_values_type(&column_values, &column_indices)?;
-        self.validate_constraints(&column_values, &column_indices)?;
         let pager_raw: *mut Pager = &mut self.pager;
 
-        for row_check in self.matching_rows(where_clause) {
+        for row_check in Self::matching_rows(&mut self.pager, &self.headers, where_clause) {
             let (row_number, mut row) = row_check?;
 
             for (column_number, column_value) in column_values.iter().enumerate() {
                 let column_table_number = column_indices[column_number];
-                row.set_cell(&column_types, column_table_number, column_value)
+                row.set_cell(&self.headers.column_types, column_table_number, column_value)
                     .map_err(TableError::CannotSetCell)?;
+
             }
+
+            Self::validate_constraints(&self.headers, &row)?;
             // pager will not reallocate to a new space during matching_rows iteration
             // so we can safely dereference raw mut pointer
             // TODO: check if we can move pager_raw and give it back, i.e.
@@ -195,9 +237,9 @@ impl Table {
         Ok(())
     }
 
-    pub fn delete(&mut self, where_clause: Option<WhereClause>) -> Result<(), TableError> {
+    pub fn delete(&mut self, where_clause: Option<BinaryCondition>) -> Result<(), TableError> {
         let pager_raw: *mut Pager = &mut self.pager;
-        for row_check in self.matching_rows(where_clause) {
+        for row_check in Self::matching_rows(&mut self.pager, &self.headers, where_clause) {
             let (row_number, _row) = row_check?;
             // pager will not reallocate to a new space during matching_rows iteration
             // so we can safely dereference raw mut pointer
@@ -211,31 +253,32 @@ impl Table {
     pub fn rename_column(&mut self, column_name: String, new_column_name: String) -> Result<(), TableError> {
         let column_index = self.column_index_result(column_name.as_str())?;
 
-        self.column_names[column_index] = new_column_name;
+        self.headers.column_names[column_index] = new_column_name;
         Ok(())
     }
 
     pub fn add_column_constraint(&mut self, column_name: String, constraint: Constraint) -> Result<(), TableError> {
         let column_index = self.column_index_result(column_name.as_str())?;
-        let column_constraints = &mut self.constraints[column_index];
+        let column_constraints = &mut self.headers.column_constraints[column_index];
 
         if column_constraints.contains(&constraint) {
-            return Err(TableError::ConstraintAlreadyExists { table_name: self.name.clone(), column_name, constraint })
+            return Err(TableError::ConstraintAlreadyExists { table_name: self.name().to_string(), column_name, constraint })
         }
 
         column_constraints.push(constraint);
+        self.compile_checks();
 
         Ok(())
     }
 
     pub fn drop_column_constraint(&mut self, column_name: String, constraint: Constraint) -> Result<(), TableError> {
         let column_index = self.column_index_result(column_name.as_str())?;
-        let column_constraints = &mut self.constraints[column_index];
+        let column_constraints = &mut self.headers.column_constraints[column_index];
 
         match column_constraints.iter().position(|existing_constraint| *existing_constraint == constraint) {
             None => {
                 return Err(TableError::ConstraintNotExists {
-                    table_name: self.name.clone(),
+                    table_name: self.name().to_string(),
                     column_name,
                     constraint,
                 })
@@ -244,17 +287,18 @@ impl Table {
                 column_constraints.swap_remove(index);
             },
         }
+        self.compile_checks();
 
         Ok(())
     }
 
     pub fn column_definitions(&self) -> Vec<ColumnDefinition> {
-        self.column_names.iter().enumerate().zip(self.column_types.iter())
+        self.column_names().iter().enumerate().zip(self.column_types().iter())
             .map(|((i, name), kind)| {
                 ColumnDefinition {
                     name: SqlValue::String(name.clone()),
                     kind: *kind,
-                    constraints: self.constraints[i].clone(),
+                    column_constraints: self.column_constraints()[i].clone(),
                 }
             })
             .collect()
@@ -264,24 +308,32 @@ impl Table {
         self.pager.vacuum().map_err(TableError::VacuumFailed)
     }
 
-    fn matching_rows(&mut self, where_clause: Option<WhereClause>) -> impl Iterator<Item = Result<(u64, Row), TableError>> + '_ {
+    fn matching_rows<'a>(pager: &'a mut Pager, table_headers: &'a TableHeaders, where_clause: Option<BinaryCondition>)
+        -> impl Iterator<Item = Result<(u64, Row), TableError>> + 'a {
+
         let where_filter = match where_clause {
-            None => WhereFilter::dummy(),
-            Some(where_clause) => where_clause.compile(&self.column_types[..], &self.name, &self.column_names),
+            None => RowCheck::dummy(),
+            Some(where_clause) => where_clause.compile(&table_headers.name, &table_headers.column_names),
         };
 
-        Self::seq_scan(&mut self.pager).filter_map(move |(i, row_check)| {
-            match row_check {
-                Ok(row) => {
-                    match where_filter.matches(&row) {
-                        Ok(true) => Some(Ok((i, row))),
-                        Ok(false) => None,
-                        Err(error) => Some(Err(error)),
-                    }
-                },
-                Err(error) => Some(Err(error)),
+        let filter_closure = {
+            let column_types = &table_headers.column_types;
+
+            move |(i, row_check)| {
+                match row_check {
+                    Ok(row) => {
+                        match where_filter.matches(&row, column_types) {
+                            Ok(true) => Some(Ok((i, row))),
+                            Ok(false) => None,
+                            Err(error) => Some(Err(error)),
+                        }
+                    },
+                    Err(error) => Some(Err(error)),
+                }
             }
-        })
+        };
+
+        Self::seq_scan(pager).filter_map(filter_closure)
     }
 
     fn seq_scan(pager: &mut Pager) -> impl Iterator<Item = (u64, Result<Row, TableError>)> + '_ {
@@ -290,6 +342,21 @@ impl Table {
             .map(|row_number| (row_number, pager.get_row(row_number).map_err(TableError::CannotGetRow)))
             .filter(|(_row_number, row_check)| row_check.is_err() || row_check.as_ref().unwrap().is_some())
             .map(|(row_number, row_check)| (row_number, row_check.map(|row_opt| row_opt.unwrap())))
+    }
+
+    fn compile_checks(&mut self) {
+        self.headers.checks.clear();
+        for column_constraints in self.headers.column_constraints.iter() {
+            for constraint in column_constraints {
+                match constraint {
+                    Constraint::Check(binary_condition) => {
+                        let check_condition = binary_condition.clone();
+                        self.headers.checks.push(check_condition.compile(&self.headers.name, &self.headers.column_names));
+                    },
+                    _ => continue,
+                }
+            }
+        }
     }
 
     fn get_columns_indices(&self, column_names: &[String]) -> Result<Vec<usize>, TableError> {
@@ -303,28 +370,41 @@ impl Table {
         Ok(column_indices)
     }
 
-    fn validate_constraints(&self, columns_values: &[SqlValue], column_indices: &[usize]) -> Result<(), TableError> {
-        for (value, &column_index) in columns_values.iter().zip(column_indices.iter()) {
-            for constraint in &self.constraints[column_index] {
-                match self.check_value_over_constraint(value, constraint) {
-                    Ok(_) => continue,
-                    Err(_) => return Err(
-                        TableError::ConstraintViolation {
-                            table_name: self.name.clone(),
-                            column_name: self.column_names[column_index].clone(),
+    fn validate_constraints(table_headers: &TableHeaders, row: &Row) -> Result<(), TableError> {
+        for (column_index, column_constraints) in table_headers.column_constraints.iter().enumerate() {
+            for constraint in column_constraints {
+                match Self::validate_row_over_constraint(row, constraint, column_index, &table_headers.column_types) {
+                    true => continue,
+                    false => return Err(
+                        TableError::ColumnConstraintViolation {
+                            table_name: table_headers.name.to_string(),
+                            column_name: table_headers.column_names[column_index].clone(),
                             constraint: constraint.clone(),
-                            value: value.clone()
+                            value: row.get_cell_sql_value(&table_headers.column_types, column_index).unwrap(),
                         }),
                 }
+            }
+        }
+
+        for check in table_headers.checks.iter() {
+            match check.matches(row, &table_headers.column_types)? {
+                true => continue,
+                false => return Err(
+                    TableError::CheckViolation {
+                        table_name: table_headers.name.to_string(),
+                        row_check: check.clone(),
+                        row: row.clone(),
+                    }),
             }
         }
 
         Ok(())
     }
 
+
     fn apply_defaults(&self, values: &[SqlValue], indices: &[usize]) -> (Vec<SqlValue>, Vec<usize>) {
-        let result_indices: Vec<usize> = (0..self.column_types.len()).collect();
-        let mut result_values = self.defaults.clone();
+        let result_indices: Vec<usize> = (0..self.column_types().len()).collect();
+        let mut result_values = self.defaults().to_vec();
 
         for (value, column_index) in values.iter().zip(indices.iter()) {
             result_values[*column_index] = value.clone();
@@ -333,13 +413,12 @@ impl Table {
         (result_values, result_indices)
     }
 
-    fn check_value_over_constraint(&self, value: &SqlValue, constraint: &Constraint) -> Result<(), ()> {
+    // TODO: remove column types after implementation of all constriants
+    fn validate_row_over_constraint(row: &Row, constraint: &Constraint, column_index: usize, _column_types: &[ColumnType]) -> bool {
         match constraint {
-            Constraint::NotNull => match value {
-                SqlValue::Null => Err(()),
-                _ => Ok(()),
-            },
-            Constraint::Default(_) => { Ok(()) },
+            Constraint::NotNull => !row.cell_is_null(column_index),
+            Constraint::Default(_) => { true },
+            Constraint::Check(_) => { true },
         }
     }
 
@@ -347,9 +426,11 @@ impl Table {
         for (value_index, value) in columns_values.iter().enumerate() {
             let column_index = column_indices[value_index];
 
-            if !self.column_types[column_index].matches_value(value) {
+            if !self.column_types()[column_index].matches_value(value) {
                 return Err(TableError::ValueColumnMismatch {
-                    value: value.clone(), column_name: self.column_names[column_index].clone(), column_type: self.column_types[column_index]
+                    value: value.clone(),
+                    column_name: self.column_names()[column_index].clone(),
+                    column_type: self.column_types()[column_index],
                 });
             }
         }
@@ -359,12 +440,12 @@ impl Table {
     // TODO: add hashmap of name -> indices to avoid names scanning
     // and pass hash ref to compile
     pub fn column_index(&self, column_name: &str) -> Option<usize> {
-        self.column_names.iter()
+        self.column_names().iter()
             .position(|table_column_name| table_column_name.eq(column_name))
     }
 
     pub fn column_index_result(&self, column_name: &str) -> Result<usize, TableError> {
         self.column_index(column_name)
-            .ok_or(TableError::ColumnNotExist { column_name: column_name.to_string(), table_name: self.name.clone() })
+            .ok_or(TableError::ColumnNotExist { column_name: column_name.to_string(), table_name: self.name().to_string() })
     }
 }
