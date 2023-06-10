@@ -50,7 +50,7 @@ impl fmt::Display for Token {
             Self::RightParenthesis => ")",
             Self::Comma => ",",
             Self::Less => "<",
-            Self::Greater => ">=",
+            Self::Greater => ">",
             Self::Equals => "=",
             Self::NotEquals => "<>",
             Self::LessEquals => "<=",

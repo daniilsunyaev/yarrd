@@ -137,6 +137,7 @@ Supported constraints: `NOT NULL`, `DEFAULT`.
 `Drop table users`
 
 ## Checklist
+
 - ✓ add prompt
 - ✓ add basic lexer
 - ✓ add basic parser
@@ -225,6 +226,7 @@ Supported constraints: `NOT NULL`, `DEFAULT`.
 - implement limit
 - `insert into users (id) values (1,2)` should not crash but show an error instead
 - implement joins
+- fix result_large_err clippy warnings
 - pressing up should restore previous command
 - make table recreation incremental (insead of full select from old table)
 - current command should be editable (left and right should reposition input cursor)

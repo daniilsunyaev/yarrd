@@ -57,17 +57,13 @@ impl Database {
         let mut database_file = File::create(database_filepath.clone())?;
 
         if !tables_dir.exists() {
-            match fs::create_dir(tables_dir.clone()) {
-                Err(create_tables_dir_error) => {
-                    fs::remove_file(database_filepath.as_path())
-                        .unwrap_or_else(|_| panic!(
-                                "failed to create tables dir: {}, failed to remove database file '{}', try to remove it manually",
-                                create_tables_dir_error, database_filepath.to_str().unwrap()
+            if let Err(create_tables_dir_error) = fs::create_dir(tables_dir.clone()) {
+                fs::remove_file(database_filepath.as_path())
+                    .unwrap_or_else(|_| panic!(
+                            "failed to create tables dir: {}, failed to remove database file '{}', try to remove it manually",
+                            create_tables_dir_error, database_filepath.to_str().unwrap()
                             ));
-                    return Err(MetaCommandError::IoError(create_tables_dir_error))
-
-                },
-                Ok(()) => { },
+                return Err(MetaCommandError::IoError(create_tables_dir_error))
             }
         }
 

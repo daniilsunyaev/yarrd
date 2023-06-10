@@ -15,8 +15,6 @@ use select::parse_select_statement;
 use delete::parse_delete_statement;
 use alter::parse_alter_statement;
 use vacuum::parse_vacuum_statement;
-use crate::binary_condition::BinaryCondition;
-use crate::cmp_operator::CmpOperator;
 use crate::parser::shared::parse_column_definition;
 
 mod create;
@@ -172,6 +170,8 @@ mod tests {
     use super::*;
     use crate::lexer::SqlValue;
     use crate::table::{ColumnType, Constraint};
+    use crate::binary_condition::BinaryCondition;
+    use crate::cmp_operator::CmpOperator;
 
     #[test]
     fn insert_with_column_names() {

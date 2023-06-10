@@ -87,9 +87,25 @@ where
     I: Iterator<Item = &'a Token>
 {
     let mut constraint_tokens = vec![];
+    let mut check_constraint_being_parsed = false;
     loop {
         match token.next() {
-            Some(Token::LeftParenthesis) => break,
+            Some(Token::Check) => {
+                check_constraint_being_parsed = true;
+                constraint_tokens.push(&Token::Check)
+            },
+            Some(Token::LeftParenthesis) => {
+                if check_constraint_being_parsed {
+                    constraint_tokens.push(&Token::LeftParenthesis);
+                    continue
+                } else {
+                    break
+                }
+            },
+            Some(Token::RightParenthesis) => {
+                constraint_tokens.push(&Token::RightParenthesis);
+                check_constraint_being_parsed = false
+            },
             Some(token) => constraint_tokens.push(token),
             None => return Err(ParserError::LeftParenthesisMissing("column name")),
         }

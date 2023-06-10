@@ -54,7 +54,7 @@ impl fmt::Display for Constraint {
         match self {
             Self::NotNull => write!(f, "NOT NULL"),
             Self::Default(value) => write!(f, "DEFAULT {}", value),
-            Self::Check(row_check) => write!(f, "CHECK {}", row_check),
+            Self::Check(row_check) => write!(f, "CHECK ({})", row_check),
         }
     }
 }
@@ -413,7 +413,8 @@ impl Table {
         (result_values, result_indices)
     }
 
-    fn validate_row_over_constraint(row: &Row, constraint: &Constraint, column_index: usize, column_types: &[ColumnType]) -> bool {
+    // TODO: remove column types after implementation of all constriants
+    fn validate_row_over_constraint(row: &Row, constraint: &Constraint, column_index: usize, _column_types: &[ColumnType]) -> bool {
         match constraint {
             Constraint::NotNull => !row.cell_is_null(column_index),
             Constraint::Default(_) => { true },
@@ -429,7 +430,7 @@ impl Table {
                 return Err(TableError::ValueColumnMismatch {
                     value: value.clone(),
                     column_name: self.column_names()[column_index].clone(),
-                    column_type: self.column_types()[column_index].clone(),
+                    column_type: self.column_types()[column_index],
                 });
             }
         }

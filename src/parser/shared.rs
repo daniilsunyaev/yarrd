@@ -119,7 +119,7 @@ where
                 }
             },
             Some(Token::Comma) => return Ok((tokens, Some(Token::Comma))),
-            Some(token) => tokens.push(&token),
+            Some(token) => tokens.push(token),
             None => return Ok((tokens, None)),
         }
     }
@@ -128,6 +128,7 @@ where
 pub fn parse_constraint_tokens(tokens: Vec<&Token>) -> Result<Vec<Constraint>, ParserError> {
     let mut iter = tokens.clone().into_iter();
     let mut result = vec![];
+    println!("toketns: {:?}", tokens);
 
     loop {
         match iter.next() {
