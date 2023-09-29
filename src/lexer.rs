@@ -232,7 +232,7 @@ fn parse_sql_value(str_token: &str) -> Option<SqlValue> {
         Some(SqlValue::Integer(integer))
     } else if let Ok(float) = str_token.parse::<f64>() {
         Some(SqlValue::Float(float))
-    } else if str_token.chars().all(|c| c.is_alphanumeric() || c == '_') {
+    } else if str_token.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '.') {
         Some(SqlValue::Identificator(str_token.to_string()))
     } else {
         None

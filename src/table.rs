@@ -116,7 +116,7 @@ impl Table {
         };
 
         let mut table = Self { pager, headers };
-        table.compile_checks();
+        table.compile_checks()?;
 
         Ok(table)
     }
@@ -171,7 +171,7 @@ impl Table {
 
         let mut result = QueryResult { column_names: result_column_names, column_types: result_column_types.clone(), rows: vec![] };
 
-        for row_check in Self::matching_rows(&mut self.pager, &self.headers, where_clause) {
+        for row_check in Self::matching_rows(&mut self.pager, &self.headers, where_clause)? {
             let (_row_number, row) = row_check?;
             let result_row = result.spawn_row();
 
@@ -214,7 +214,7 @@ impl Table {
         self.validate_values_type(&column_values, &column_indices)?;
         let pager_raw: *mut Pager = &mut self.pager;
 
-        for row_check in Self::matching_rows(&mut self.pager, &self.headers, where_clause) {
+        for row_check in Self::matching_rows(&mut self.pager, &self.headers, where_clause)? {
             let (row_number, mut row) = row_check?;
 
             for (column_number, column_value) in column_values.iter().enumerate() {
@@ -239,7 +239,7 @@ impl Table {
 
     pub fn delete(&mut self, where_clause: Option<BinaryCondition>) -> Result<(), TableError> {
         let pager_raw: *mut Pager = &mut self.pager;
-        for row_check in Self::matching_rows(&mut self.pager, &self.headers, where_clause) {
+        for row_check in Self::matching_rows(&mut self.pager, &self.headers, where_clause)? {
             let (row_number, _row) = row_check?;
             // pager will not reallocate to a new space during matching_rows iteration
             // so we can safely dereference raw mut pointer
@@ -266,7 +266,7 @@ impl Table {
         }
 
         column_constraints.push(constraint);
-        self.compile_checks();
+        self.compile_checks()?;
 
         Ok(())
     }
@@ -287,7 +287,7 @@ impl Table {
                 column_constraints.swap_remove(index);
             },
         }
-        self.compile_checks();
+        self.compile_checks()?;
 
         Ok(())
     }
@@ -309,11 +309,11 @@ impl Table {
     }
 
     fn matching_rows<'a>(pager: &'a mut Pager, table_headers: &'a TableHeaders, where_clause: Option<BinaryCondition>)
-        -> impl Iterator<Item = Result<(u64, Row), TableError>> + 'a {
+        -> Result<impl Iterator<Item = Result<(u64, Row), TableError>> + 'a, TableError> {
 
         let where_filter = match where_clause {
             None => RowCheck::dummy(),
-            Some(where_clause) => where_clause.compile(&table_headers.name, &table_headers.column_names),
+            Some(where_clause) => where_clause.compile(&table_headers.name, &table_headers.column_names)?,
         };
 
         let filter_closure = {
@@ -333,7 +333,7 @@ impl Table {
             }
         };
 
-        Self::seq_scan(pager).filter_map(filter_closure)
+        Ok(Self::seq_scan(pager).filter_map(filter_closure))
     }
 
     fn seq_scan(pager: &mut Pager) -> impl Iterator<Item = (u64, Result<Row, TableError>)> + '_ {
@@ -344,19 +344,20 @@ impl Table {
             .map(|(row_number, row_check)| (row_number, row_check.map(|row_opt| row_opt.unwrap())))
     }
 
-    fn compile_checks(&mut self) {
+    fn compile_checks(&mut self) -> Result<(), TableError> {
         self.headers.checks.clear();
         for column_constraints in self.headers.column_constraints.iter() {
             for constraint in column_constraints {
                 match constraint {
                     Constraint::Check(binary_condition) => {
                         let check_condition = binary_condition.clone();
-                        self.headers.checks.push(check_condition.compile(&self.headers.name, &self.headers.column_names));
+                        self.headers.checks.push(check_condition.compile(&self.headers.name, &self.headers.column_names)?);
                     },
                     _ => continue,
                 }
             }
         }
+        Ok(())
     }
 
     fn get_columns_indices(&self, column_names: &[String]) -> Result<Vec<usize>, TableError> {

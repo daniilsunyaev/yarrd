@@ -12,6 +12,7 @@ use crate::row_check::RowCheck;
 
 #[derive(Debug)]
 pub enum TableError {
+    TableNotExist(String),
     CreateError(PagerError),
     ColumnNotExist { table_name: String, column_name: String },
     ColumnNthNotExist { table_name: String, column_index: usize },
@@ -28,11 +29,13 @@ pub enum TableError {
     ConstraintNotExists { table_name: String, column_name: String, constraint: Constraint },
     ColumnConstraintViolation { table_name: String, constraint: Constraint, column_name: String, value: SqlValue },
     CheckViolation { table_name: String, row_check: RowCheck, row: Row },
+    UnexpectedBinaryConditionError { table_name: String, column_string: String },
 }
 
 impl fmt::Display for TableError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
+            Self::TableNotExist(table_name) => write!(f, "table '{}' not exists", table_name),
             Self::CreateError(_pager_error) => write!(f, "unable to create table: error initializing a pager"),
             Self::ColumnNotExist { table_name, column_name } =>
                 write!(f, "table '{}' does not have column '{}'", table_name, column_name),
@@ -62,6 +65,10 @@ impl fmt::Display for TableError {
                 write!(f,
                     "row {} violates 'check ({})' constraint from table '{}'",
                     row, row_check, table_name),
+            Self::UnexpectedBinaryConditionError { table_name, column_string } =>
+                write!(f,
+                    "unexpected error while building binary condition value from table '{}' and table column '{}'",
+                    table_name, column_string),
         }
     }
 }

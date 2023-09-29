@@ -24,7 +24,7 @@ yarrd> insert into users (name, id) values ("john", 3)
 
 yarrd> insert into users (id, name) values (1, NULL)
 
-yarrd> select id from users where name = john
+yarrd> select id from users where name = "john"
 ```
 
 result is:
@@ -206,7 +206,7 @@ Supported constraints: `NOT NULL`, `DEFAULT`.
 - ✓ allow to update constraints
 - ✓ implement default constraint
 - ✓ implement check constraint
-- `SELECT id FROM users WHERE "users.name" = name` should not return all records
+- ✓ `SELECT id FROM users WHERE "users.name" = name` should not return all records
 - implement create index
   - store hashtable for primary keys at the beginning of file or store those in root database file
   - update hashtable on insert
