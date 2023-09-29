@@ -140,7 +140,7 @@ mod tests {
     fn insert_with_constraints_and_select_from_table() {
         let (_db_file, mut database) = open_test_database();
         let id_greater_than_zero = BinaryCondition {
-            left_value: SqlValue::String("id".to_string()),
+            left_value: SqlValue::Identificator("id".to_string()),
             operator: CmpOperator::Greater,
             right_value: SqlValue::Integer(0)
         };
@@ -195,7 +195,7 @@ mod tests {
             column_names: vec![SelectColumnName::AllColumns, SelectColumnName::Name(SqlValue::Identificator("id".to_string()))],
             where_clause: Some(BinaryCondition {
                 left_value: SqlValue::Integer(1),
-                right_value: SqlValue::String("users.id".to_string()),
+                right_value: SqlValue::Identificator("users.id".to_string()),
                 operator: CmpOperator::Equals,
             }),
         };
@@ -289,7 +289,7 @@ mod tests {
 
         let insert_into_table = Command::InsertInto {
             table_name: SqlValue::Identificator("users".to_string()),
-            column_names: Some(vec![SqlValue::Identificator("id".to_string()), SqlValue::String("name".to_string())]),
+            column_names: Some(vec![SqlValue::Identificator("id".to_string()), SqlValue::Identificator("name".to_string())]),
             values: vec![SqlValue::Integer(1), SqlValue::Identificator("John".to_string())],
         };
         let insert_into_table_result = database.execute(insert_into_table);
@@ -299,7 +299,7 @@ mod tests {
             table_name: SqlValue::Identificator("users".to_string()),
             where_clause: Some(BinaryCondition {
                 left_value: SqlValue::String("John".to_string()),
-                right_value: SqlValue::String("name".to_string()),
+                right_value: SqlValue::Identificator("name".to_string()),
                 operator: CmpOperator::Equals,
             }),
         };
@@ -478,7 +478,7 @@ mod tests {
         let delete_from_table = Command::Delete {
             table_name: SqlValue::Identificator("users".to_string()),
             where_clause: Some(BinaryCondition {
-                left_value: SqlValue::String("id".to_string()),
+                left_value: SqlValue::Identificator("id".to_string()),
                 right_value: SqlValue::Integer(1),
                 operator: CmpOperator::Equals,
             }),
@@ -496,7 +496,7 @@ mod tests {
         let delete_from_table = Command::Delete {
             table_name: SqlValue::Identificator("users".to_string()),
             where_clause: Some(BinaryCondition {
-                left_value: SqlValue::String("id".to_string()),
+                left_value: SqlValue::Identificator("id".to_string()),
                 right_value: SqlValue::Integer(15),
                 operator: CmpOperator::LessEquals,
             }),
