@@ -1,5 +1,6 @@
 use std::error::Error;
 use std::fmt;
+use std::hash::{Hash, Hasher};
 
 #[derive(Debug, PartialEq)]
 pub enum Token {
@@ -124,6 +125,18 @@ impl fmt::Display for SqlValue {
             Self::Integer(integer) => write!(f, "{}", integer),
             Self::Float(float) => write!(f, "{:e}", float),
             Self::Null => write!(f, "NULL"),
+        }
+    }
+}
+
+impl Hash for SqlValue {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match self {
+            Self::Float(_) => return,
+            Self::String(string) => string.hash(state),
+            Self::Integer(int) => int.hash(state),
+            Self::Identificator(string) => string.hash(state),
+            Self::Null => Self::Null.hash(state),
         }
     }
 }

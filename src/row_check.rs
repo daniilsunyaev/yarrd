@@ -51,6 +51,28 @@ impl RowCheck {
 
     }
 
+    pub fn is_column_value_eq_static_check(&self) -> Option<(usize, SqlValue)> {
+        match self.operator {
+            CmpOperator::Equals => {
+                match &self.left {
+                    RowCheckValue::TableColumn(column_number) => {
+                        if let RowCheckValue::Static(sql_value) = &self.right {
+                            return Some((*column_number, sql_value.clone()))
+                        }
+                    },
+                    RowCheckValue::Static(sql_value) => {
+                        if let RowCheckValue::TableColumn(column_number) = self.right {
+                            return Some((column_number, sql_value.clone()))
+                        }
+                    },
+                }
+            },
+            _ => {},
+        }
+
+        None
+    }
+
     fn get_value(&self, value: &RowCheckValue, row: &Row, column_types: &[ColumnType]) -> Result<SqlValue, TableError> {
         match value {
             RowCheckValue::Static(sql_value) => Ok(sql_value.clone()),

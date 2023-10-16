@@ -208,10 +208,12 @@ Supported constraints: `NOT NULL`, `DEFAULT`.
 - ✓ implement check constraint
 - ✓ `SELECT id FROM users WHERE "users.name" = name` should not return all records
 - implement create index
-  - store hashtable for primary keys at the beginning of file or store those in root database file
+  ✓ store hashtable for indexed keys at the hash file
+  - allow to set index on create table
   - update hashtable on insert
   - update hashtable on delete
   - update hashtable on update
+  - allow to set or delete index on alter table
 - do not allow two columns with the same names in a table
 - implement unique constraint
 - introduce AND and allow WHERE to accept multiple conditions
@@ -225,6 +227,7 @@ Supported constraints: `NOT NULL`, `DEFAULT`.
 - add pretty output of queries
 - implement limit
 - `insert into users (id) values (1,2)` should not crash but show an error instead
+- think if we can handle multipage rows or maybe should make page size dynamic
 - implement joins
 - fix result_large_err clippy warnings
 - pressing up should restore previous command
