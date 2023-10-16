@@ -8,6 +8,7 @@ use crate::row::Row;
 use crate::query_result::QueryResult;
 use crate::pager::Pager;
 use crate::row_check::RowCheck;
+use crate::hash_index::HashIndex;
 use error::TableError;
 
 pub mod error;
@@ -65,6 +66,10 @@ struct TableHeaders {
     pub column_types: Vec<ColumnType>,
     pub column_names: Vec<String>,
     pub column_constraints: Vec<Vec<Constraint>>,
+    // eventually index type will be boxed, bus as it looks like I won't have time to implement
+    // B-Tree, inverted, or any other type of index soon, I'm leaving straight index class inside
+    // Option
+    pub column_indexes: Vec<Option<HashIndex>>,
     pub defaults: Vec<SqlValue>,
     checks: Vec<RowCheck>,
 }
@@ -81,6 +86,8 @@ impl Table {
         let mut column_types = vec![];
         let mut column_constraints = vec![vec![]; column_definitions.len()];
         let mut defaults = vec![SqlValue::Null; column_definitions.len()];
+        let mut column_indexes = vec![];
+        column_indexes.resize(column_definitions.len(), None);
 
         for (i, column_definition) in column_definitions.into_iter().enumerate() {
             column_names.push(column_definition.name.to_string());
@@ -112,7 +119,8 @@ impl Table {
             column_types,
             column_names,
             column_constraints,
-            defaults
+            defaults,
+            column_indexes,
         };
 
         let mut table = Self { pager, headers };
@@ -292,6 +300,24 @@ impl Table {
         Ok(())
     }
 
+    //fn write_column_index(&mut self, column_value: SqlValue, column_index: usize, row_number: u64) {
+    //    match self.column_index_types[column_index] {
+    //        None => return,
+    //        Some(hash_index) =>
+    //            self.write_column_hash_index(row_number, column_value, column_index),
+    //    }
+    //}
+
+    //fn write_column_hash_index(&mut self, column_value: SqlValue, column_index: usize, buckets_count: u32) {
+    //    let bucket = self.get_bucket(column_index, hashed_value);
+    //    bucket.write_column_index(row_number, hashed_value);
+    //    // collisions_count, (hashed_value, row_number), (hashed_value, row_number), ...
+
+    //    // self.colum_hash_file.write_at(bucket_number * BUCKET_SIZE, )
+    //    // TODO: create bucket class and handle flushing there
+
+    //}
+
     pub fn column_definitions(&self) -> Vec<ColumnDefinition> {
         self.column_names().iter().enumerate().zip(self.column_types().iter())
             .map(|((i, name), kind)| {
@@ -316,32 +342,73 @@ impl Table {
             Some(where_clause) => where_clause.compile(&table_headers.name, &table_headers.column_names)?,
         };
 
+        let base_query_iter = Self::plan_query(table_headers, pager, &where_filter)?;
+
         let filter_closure = {
             let column_types = &table_headers.column_types;
 
-            move |(i, row_check)| {
-                match row_check {
-                    Ok(row) => {
-                        match where_filter.matches(&row, column_types) {
-                            Ok(true) => Some(Ok((i, row))),
-                            Ok(false) => None,
+            move |result| {
+                match result {
+                    Ok((i, row_extraction)) =>
+                        match row_extraction {
+                            Ok(row) => {
+                                match where_filter.matches(&row, column_types) {
+                                    Ok(true) => Some(Ok((i, row))),
+                                    Ok(false) => None,
+                                    Err(error) => Some(Err(error)),
+                                }
+                            },
                             Err(error) => Some(Err(error)),
-                        }
-                    },
+                        },
                     Err(error) => Some(Err(error)),
                 }
             }
         };
 
-        Ok(Self::seq_scan(pager).filter_map(filter_closure))
+        Ok(base_query_iter.filter_map(filter_closure))
     }
 
-    fn seq_scan(pager: &mut Pager) -> impl Iterator<Item = (u64, Result<Row, TableError>)> + '_ {
+    fn plan_query<'a, 'b>(table_headers: &'a TableHeaders, pager: &'a mut Pager, where_filter: &'b RowCheck)
+        -> Result<Box<dyn Iterator<Item = Result<(u64, Result<Row, TableError>), TableError>> + 'a>, TableError> {
+
+        if let Some((column_number, value)) = where_filter.is_column_value_eq_static_check() {
+            if table_headers.column_indexes[column_number].is_some() {
+                return Self::index_scan(table_headers, pager, column_number, value)
+            }
+        }
+
+        Ok(Self::seq_scan(pager))
+
+    }
+
+    fn seq_scan(pager: &mut Pager) -> Box<dyn Iterator<Item = Result<(u64, Result<Row, TableError>), TableError>> + '_> {
         let max_rows = pager.max_rows();
-        (0..max_rows)
+
+        Box::new(
+            (0..max_rows)
             .map(|row_number| (row_number, pager.get_row(row_number).map_err(TableError::CannotGetRow)))
             .filter(|(_row_number, row_check)| row_check.is_err() || row_check.as_ref().unwrap().is_some())
-            .map(|(row_number, row_check)| (row_number, row_check.map(|row_opt| row_opt.unwrap())))
+            .map(|(row_number, row_check)| Ok((row_number, row_check.map(|row_opt| row_opt.unwrap()))))
+        )
+    }
+
+    fn index_scan<'a>(table_headers: &'a TableHeaders, pager: &'a mut Pager, column_number: usize, value: SqlValue)
+        -> Result<Box<dyn Iterator<Item = Result<(u64, Result<Row, TableError>), TableError>> + 'a>, TableError>  {
+
+            Ok(
+                Box::new(
+                    table_headers
+                    .column_indexes[column_number].as_ref().unwrap()
+                    .find_row_ids(value)?
+                    .map(|row_number_result| {
+                        row_number_result
+                            .map_err(TableError::HashIndexError)
+                            .map(|row_number| (row_number, pager.get_row(row_number).map_err(TableError::CannotGetRow)))
+                    })
+                    .filter(|result| result.is_err() || result.as_ref().unwrap().1.is_err() || result.as_ref().unwrap().1.as_ref().unwrap().is_some())
+                    .map(|result| result.map(|(row_number, row_check)| (row_number, row_check.map(|row_opt| row_opt.unwrap()))))
+                )
+            )
     }
 
     fn compile_checks(&mut self) -> Result<(), TableError> {

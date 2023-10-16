@@ -9,6 +9,7 @@ use crate::serialize::SerDeError;
 use crate::cmp_operator::CmpError;
 use crate::row::Row;
 use crate::row_check::RowCheck;
+use crate::hash_index::error::HashIndexError;
 
 #[derive(Debug)]
 pub enum TableError {
@@ -30,6 +31,7 @@ pub enum TableError {
     ColumnConstraintViolation { table_name: String, constraint: Constraint, column_name: String, value: SqlValue },
     CheckViolation { table_name: String, row_check: RowCheck, row: Row },
     UnexpectedBinaryConditionError { table_name: String, column_string: String },
+    HashIndexError(HashIndexError),
 }
 
 impl fmt::Display for TableError {
@@ -69,7 +71,14 @@ impl fmt::Display for TableError {
                 write!(f,
                     "unexpected error while building binary condition value from table '{}' and table column '{}'",
                     table_name, column_string),
+            Self::HashIndexError(index_error) => write!(f, "{}", index_error.to_string()),
         }
+    }
+}
+
+impl From<HashIndexError> for TableError {
+    fn from(error: HashIndexError) -> Self {
+        Self::HashIndexError(error)
     }
 }
 

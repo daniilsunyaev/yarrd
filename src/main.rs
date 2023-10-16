@@ -22,6 +22,7 @@ mod serialize;
 mod pager;
 mod cmp_operator;
 mod helpers;
+mod hash_index;
 
 #[cfg(test)]
 mod temp_file;
