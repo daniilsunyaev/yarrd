@@ -359,7 +359,7 @@ impl Table {
             Some(where_clause) => where_clause.compile(&table_headers.name, &table_headers.column_names)?,
         };
 
-        let base_query_iter = Self::plan_query(pager, column_indexes, &where_filter)?;
+        let base_query_iter = Self::plan_query(pager, column_indexes, &where_filter);
 
         let filter_closure = {
             let column_types = &table_headers.column_types;
@@ -386,7 +386,7 @@ impl Table {
     }
 
     fn plan_query<'a, 'b>(pager: &'a mut Pager, column_indexes: &'a mut Vec<Option<HashIndex>>, where_filter: &'b RowCheck)
-        -> Result<Box<dyn Iterator<Item = Result<(u64, Result<Row, TableError>), TableError>> + 'a>, TableError> {
+        -> Box<dyn Iterator<Item = Result<(u64, Result<Row, TableError>), TableError>> + 'a> {
 
         if let Some((column_number, value)) = where_filter.is_column_value_eq_static_check() {
             if let Some(ref mut column_index) = column_indexes[column_number] {
@@ -394,7 +394,7 @@ impl Table {
             }
         }
 
-        Ok(Self::seq_scan(pager))
+        Self::seq_scan(pager)
 
     }
 
@@ -410,22 +410,20 @@ impl Table {
     }
 
     fn index_scan<'a>(pager: &'a mut Pager, column_index: &'a mut HashIndex, value: SqlValue)
-        -> Result<Box<dyn Iterator<Item = Result<(u64, Result<Row, TableError>), TableError>> + 'a>, TableError>  {
+        -> Box<dyn Iterator<Item = Result<(u64, Result<Row, TableError>), TableError>> + 'a>  {
 
-            Ok(
-                Box::new(
-                    column_index
-                    .find_row_ids(&value)?
-                    .map(|row_number_result| {
-                        row_number_result
-                            .map_err(TableError::HashIndexError)
-                            .map(|row_number| (row_number, pager.get_row(row_number).map_err(TableError::CannotGetRow)))
-                    })
-                    .filter(|result| result.is_err() || result.as_ref().unwrap().1.is_err() || result.as_ref().unwrap().1.as_ref().unwrap().is_some())
-                    .map(|result| result.map(|(row_number, row_check)| (row_number, row_check.map(|row_opt| row_opt.unwrap()))))
-                )
+            Box::new(
+                column_index
+                .find_row_ids(&value)
+                .map(|row_number_result| {
+                    row_number_result
+                        .map_err(TableError::HashIndexError)
+                        .map(|row_number| (row_number, pager.get_row(row_number).map_err(TableError::CannotGetRow)))
+                })
+                .filter(|result| result.is_err() || result.as_ref().unwrap().1.is_err() || result.as_ref().unwrap().1.as_ref().unwrap().is_some())
+                .map(|result| result.map(|(row_number, row_check)| (row_number, row_check.map(|row_opt| row_opt.unwrap()))))
             )
-    }
+        }
 
     fn compile_checks(&mut self) -> Result<(), TableError> {
         self.headers.checks.clear();

@@ -33,20 +33,18 @@ impl HashIndex {
         })
     }
 
-    pub fn find_row_ids(&mut self, column_value: &SqlValue) -> Result<impl Iterator<Item = Result<u64, HashIndexError>> + '_, HashIndexError> {
+    pub fn find_row_ids(&mut self, column_value: &SqlValue) -> impl Iterator<Item = Result<u64, HashIndexError>> + '_ {
         let hashed_value = Self::hash_sql_value(column_value);
 
-        Ok(
-            Self::matching_buckets(&mut self.hash_index_file, self.buckets_count, hashed_value)?
+        Self::matching_buckets(&mut self.hash_index_file, self.buckets_count, hashed_value)
             .map(move |bucket| bucket.find_database_rows(hashed_value))
             .flatten()
-          )
     }
 
     pub fn insert_row(&mut self, column_value: &SqlValue, row_id: u64) -> Result<(), HashIndexError> {
         let hashed_value = Self::hash_sql_value(column_value);
         let bucket_with_new_row =
-            Self::matching_buckets(&mut self.hash_index_file, self.buckets_count, hashed_value)?
+            Self::matching_buckets(&mut self.hash_index_file, self.buckets_count, hashed_value)
             .map(|mut bucket: HashBucket| {
                         match bucket.insert_row(hashed_value, row_id) {
                             Ok(_) => true, // insert successful, finish iteration
@@ -59,7 +57,7 @@ impl HashIndex {
         match bucket_with_new_row {
             Some(_) => Ok(()),
             None => {
-                Self::matching_buckets(&mut self.hash_index_file, self.buckets_count, hashed_value)?
+                Self::matching_buckets(&mut self.hash_index_file, self.buckets_count, hashed_value)
                     .last()
                     .unwrap() // matching buckets is guaranteed to return at least one bucket
                     .spawn_overflow_bucket()?
@@ -68,11 +66,9 @@ impl HashIndex {
         }
     }
 
-    fn matching_buckets(hash_index_file: &mut File, buckets_count: u64, hashed_value: u64) -> Result<impl Iterator<Item = HashBucket> + '_, HashIndexError> {
+    fn matching_buckets(hash_index_file: &mut File, buckets_count: u64, hashed_value: u64) -> impl Iterator<Item = HashBucket> + '_ {
         let primary_bucket_number = hashed_value % buckets_count;
-        let iter = HashBucket::bucket_iter_with_overflow_buckets(primary_bucket_number, hash_index_file);
-
-        Ok(iter)
+        HashBucket::bucket_iter_with_overflow_buckets(primary_bucket_number, hash_index_file)
     }
 
     fn hash_sql_value(value: &SqlValue) -> u64 {
@@ -139,13 +135,15 @@ mod tests {
 
         contents.resize(512, 0);
 
-        index_file.write_bytes(&contents).unwrap();
+        index_file.write_bytes(&contents)
+            .expect("seed contents should be writable to index file");
 
-        let mut index = HashIndex::new(table_file_path.as_path(), "users", 2).unwrap();
+        let mut index = HashIndex::new(table_file_path.as_path(), "users", 2)
+            .expect("hash index should be creatable from seed file");
 
-        assert_eq!(index.find_row_ids(&SqlValue::Integer(1)).unwrap().next().unwrap().unwrap(), 3u64);
-        assert_eq!(index.find_row_ids(&SqlValue::String("john".to_string())).unwrap().next().unwrap().unwrap(), 1u64);
-        assert_eq!(index.find_row_ids(&SqlValue::Integer(3)).unwrap().next().is_none(), true);
+        assert_eq!(index.find_row_ids(&SqlValue::Integer(1)).next().unwrap().unwrap(), 3u64);
+        assert_eq!(index.find_row_ids(&SqlValue::String("john".to_string())).next().unwrap().unwrap(), 1u64);
+        assert_eq!(index.find_row_ids(&SqlValue::Integer(3)).next().is_none(), true);
     }
 
     #[test]
@@ -163,18 +161,20 @@ mod tests {
 
          contents.resize(512, 0);
 
-         index_file.write_bytes(&contents).unwrap();
+        index_file.write_bytes(&contents)
+            .expect("seed contents should be writable to index file");
 
-         let mut index = HashIndex::new(table_file_path.as_path(), "users", 2).unwrap();
+        let mut index = HashIndex::new(table_file_path.as_path(), "users", 2)
+            .expect("hash index should be creatable from seed file");
 
          assert_eq!(index.insert_row(&SqlValue::Integer(1), 999).is_ok(), true);
-         assert_eq!(index.find_row_ids(&SqlValue::Integer(1)).unwrap().last().unwrap().unwrap(), 999u64);
+         assert_eq!(index.find_row_ids(&SqlValue::Integer(1)).last().unwrap().unwrap(), 999u64);
 
          // inserting to overflow bucket
          assert_eq!(index.insert_row(&SqlValue::Integer(1), 1000).is_ok(), true);
-         assert_eq!(index.find_row_ids(&SqlValue::Integer(1)).unwrap().last().unwrap().unwrap(), 1000u64);
+         assert_eq!(index.find_row_ids(&SqlValue::Integer(1)).last().unwrap().unwrap(), 1000u64);
 
-         let overflow_blob = index_file.read_u64(504).unwrap();
+         let overflow_blob = index_file.read_u64(504).expect("cannot read overflow bucket number blob");
          let overflow_pointer = u64::from_le_bytes(overflow_blob);
          assert_eq!(overflow_pointer, 1);
      }

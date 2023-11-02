@@ -18,7 +18,6 @@ pub struct HashBucket {
     bytes: [u8; BUCKET_SIZE],
 }
 
-// TODO: maybe use full struct
 pub struct HashRow {
     presence_flag: u8,
     hashed_value: u64,
