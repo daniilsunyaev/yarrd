@@ -50,11 +50,11 @@ impl Page {
         self.modified = true;
     }
 
-    pub fn insert_row(&mut self, row: &Row) -> Result<(), PagerError> {
+    pub fn insert_row(&mut self, row: &Row) -> Result<u64, PagerError> {
         match self.free_row_number() {
             Some(free_row_number) => {
                 self.update_row(free_row_number, row);
-                Ok(())
+                Ok(free_row_number as u64)
             },
             None => Err(PagerError::PageIsFull),
         }

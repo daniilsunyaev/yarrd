@@ -208,12 +208,16 @@ Supported constraints: `NOT NULL`, `DEFAULT`.
 - ✓ implement check constraint
 - ✓ `SELECT id FROM users WHERE "users.name" = name` should not return all records
 - implement create index
-  ✓ store hashtable for indexed keys at the hash file
-  - allow to set index on create table
+  - ✓ store hashtable for indexed keys at the hash file and allow to search through index
+  - ✓ introduce overflow pages (handle multiple equal values)
+  - increase index buckets count if rows / total hash space > 0.5
   - update hashtable on insert
   - update hashtable on delete
   - update hashtable on update
+  - update hashtable on vacuum
+  - allow to set index on create table
   - allow to set or delete index on alter table
+  - implement REINDEX
 - do not allow two columns with the same names in a table
 - implement unique constraint
 - introduce AND and allow WHERE to accept multiple conditions

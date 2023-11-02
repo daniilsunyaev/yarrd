@@ -1,118 +1,81 @@
 use crate::lexer::SqlValue;
 use crate::hash_index::error::HashIndexError;
+use crate::hash_index::hash_bucket::HashBucket;
 use crate::serialize::SerDeError;
 
 use std::path::{PathBuf, Path};
 use std::fs::{OpenOptions, File};
-use std::io::{Seek, SeekFrom, Write, Read};
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
-const ROW_SIZE: usize = 1 + 8 + 8; // is deleted flag + hashed value + disk row number
-const BUCKET_SIZE: usize = 512;
-const ROWS_IN_BUCKET: usize = BUCKET_SIZE / ROW_SIZE;
-
 pub mod error;
+mod hash_bucket;
 
 #[derive(Debug)]
-pub struct HashBucket {
-    hash_index_file: File,
-    bytes: [u8; BUCKET_SIZE],
-}
-
-impl HashBucket {
-    pub fn new(filepath: &Path, bucket_number: u64) -> Result<HashBucket, HashIndexError> {
-        let mut hash_index_file = OpenOptions::new()
-            .read(true)
-            .write(true)
-            .open(filepath)?;
-
-        hash_index_file.seek(SeekFrom::Start(BUCKET_SIZE as u64 * bucket_number))?;
-        let mut bytes = [0u8; BUCKET_SIZE];
-        hash_index_file.read_exact(&mut bytes)?;
-
-        Ok(Self { hash_index_file, bytes })
-    }
-
-    pub fn find_rows(self, hashed_value: u64) -> impl Iterator<Item = Result<u64, HashIndexError>> {
-        // TODO: what if there are 100 values maped to the same hash value, how it will fit in a
-        // single bucket?
-
-        (0..ROWS_IN_BUCKET)
-            .map(move |row_number| {
-                let mut u64_blob: [u8; 8] = [0; 8];
-                let row_starts_at = row_number * ROW_SIZE;
-
-                let presence_flag = &self.bytes[row_starts_at];
-
-                (&self.bytes[(row_starts_at + 1)..(row_starts_at + 9)])
-                    .read(&mut u64_blob)
-                    .map_err(SerDeError::CannotReadStringLenError)?;
-                let current_hashed_value = u64::from_le_bytes(u64_blob);
-
-                (&self.bytes[(row_starts_at + 9)..(row_starts_at + 17)])
-                    .read(&mut u64_blob)
-                    .map_err(SerDeError::CannotReadStringLenError)?;
-                let potential_row_id = u64::from_le_bytes(u64_blob);
-
-                Ok((*presence_flag, current_hashed_value, potential_row_id))
-            })
-            .filter(move |result| {
-                    result.is_err() ||
-                        matches!(result, Ok(tuple) if tuple.0 == 1 && tuple.1 == hashed_value)
-            })
-            .map(|result| result.map(|r| r.2))
-    }
-
-    // pub fn insert_row(&mut self, hashed_value: u64, row_id: u64) -> Result<(),()> {
-    //     for row_number in 0..ROWS_IN_BUCKET {
-    //         let row_starts_at = row_number * ROW_SIZE;
-    //         match self.bytes[row_starts_at] {
-    //             1 => continue,
-    //             0 => {
-    //                 self.bytes[row_starts_at] = 1;
-    //                 let hashed_value_blob = hashed_value.to_le_bytes();
-    //                 let row_id_blob = row_id.to_le_bytes();
-    //                 (&mut self.bytes[(row_starts_at + 1)..]).write(&hashed_value_blob);
-    //                 (&mut self.bytes[(row_starts_at + 9)..]).write(&row_id_blob);
-
-    //                 return Ok(())
-    //             },
-    //             _ => continue,
-    //         }
-    //     }
-
-    //     Err(())
-    // }
-}
-
-#[derive(Debug, Clone)]
 pub struct HashIndex {
-    filepath: PathBuf,
+    hash_index_file: File,
     buckets_count: u64,
 }
 
 impl HashIndex {
-    pub fn new(table_filepath: &Path, table_name: &str, column_index: usize) -> HashIndex {
-        Self {
-            filepath: Self::build_hash_index_filepath(table_filepath, table_name, column_index),
+    pub fn new(table_filepath: &Path, table_name: &str, column_index: usize) -> Result<HashIndex, HashIndexError> {
+        let filepath = Self::build_hash_index_filepath(table_filepath, table_name, column_index);
+
+        let hash_index_file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .open(filepath)?;
+
+        Ok(Self {
+            hash_index_file,
             buckets_count: 1,
+        })
+    }
+
+    pub fn find_row_ids(&mut self, column_value: &SqlValue) -> Result<impl Iterator<Item = Result<u64, HashIndexError>> + '_, HashIndexError> {
+        let hashed_value = Self::hash_sql_value(column_value);
+
+        Ok(
+            Self::matching_buckets(&mut self.hash_index_file, self.buckets_count, hashed_value)?
+            .map(move |bucket| bucket.find_database_rows(hashed_value))
+            .flatten()
+          )
+    }
+
+    pub fn insert_row(&mut self, column_value: &SqlValue, row_id: u64) -> Result<(), HashIndexError> {
+        let hashed_value = Self::hash_sql_value(column_value);
+        let bucket_with_new_row =
+            Self::matching_buckets(&mut self.hash_index_file, self.buckets_count, hashed_value)?
+            .map(|mut bucket: HashBucket| {
+                        match bucket.insert_row(hashed_value, row_id) {
+                            Ok(_) => true, // insert successful, finish iteration
+                            Err(_) => false, // keep searching for a free bucket
+                        }
+            })
+            .skip_while(|&insertion_result| insertion_result == false)
+            .next();
+
+        match bucket_with_new_row {
+            Some(_) => Ok(()),
+            None => {
+                Self::matching_buckets(&mut self.hash_index_file, self.buckets_count, hashed_value)?
+                    .last()
+                    .unwrap() // matching buckets is guaranteed to return at least one bucket
+                    .spawn_overflow_bucket()?
+                    .insert_row(hashed_value, row_id)
+            }
         }
     }
 
-    pub fn find_row_ids(&self, column_value: SqlValue) -> Result<impl Iterator<Item = Result<u64, HashIndexError>>, HashIndexError> {
-        let hashed_value = Self::hash_sql_value(column_value);
+    fn matching_buckets(hash_index_file: &mut File, buckets_count: u64, hashed_value: u64) -> Result<impl Iterator<Item = HashBucket> + '_, HashIndexError> {
+        let primary_bucket_number = hashed_value % buckets_count;
+        let iter = HashBucket::bucket_iter_with_overflow_buckets(primary_bucket_number, hash_index_file);
 
-        Ok(self.get_bucket(hashed_value)?.find_rows(hashed_value))
+        Ok(iter)
     }
 
-    fn get_bucket(&self, hashed_value: u64) -> Result<HashBucket, HashIndexError> {
-        let bucket_number = hashed_value % self.buckets_count;
-
-        HashBucket::new(self.filepath.as_path(), bucket_number)
-    }
-
-    fn hash_sql_value(value: SqlValue) -> u64 {
+    fn hash_sql_value(value: &SqlValue) -> u64 {
         let mut hasher = DefaultHasher::new();
         value.hash(&mut hasher);
         hasher.finish()
@@ -137,19 +100,25 @@ mod tests {
         s.finish()
     }
 
-    #[test]
-    fn create_index_does_not_panic() {
-        let table_file = TempFile::new("users.table").unwrap();
-        HashIndex::new(table_file.path(), "users", 8);
-    }
-
-    #[test]
-    fn find_row_ids() {
-        let mut index_file = TempFile::new("users-2.hash").unwrap();
+    fn create_index_file() -> (TempFile, PathBuf) {
+        let index_file = TempFile::new("users-2.hash").unwrap();
         let table_file_name = "users.table";
         let mut table_file_path = index_file.path().to_path_buf();
         table_file_path.pop();
         table_file_path.push(table_file_name);
+
+        (index_file, table_file_path)
+    }
+
+    #[test]
+    fn create_index_does_not_panic() {
+        let table_file = TempFile::new("users.table").unwrap();
+        HashIndex::new(table_file.path(), "users", 8).expect("cannot create index from file");
+    }
+
+    #[test]
+    fn find_row_ids() {
+        let (index_file, table_file_path) = create_index_file();
 
         let hash_1 = calculate_hash(&1i64).to_le_bytes();
         let hash_john = calculate_hash(&"john").to_le_bytes();
@@ -172,10 +141,41 @@ mod tests {
 
         index_file.write_bytes(&contents).unwrap();
 
-        let index = HashIndex::new(table_file_path.as_path(), "users", 2);
+        let mut index = HashIndex::new(table_file_path.as_path(), "users", 2).unwrap();
 
-        assert_eq!(index.find_row_ids(SqlValue::Integer(1)).unwrap().next().unwrap().unwrap(), 3u64);
-        assert_eq!(index.find_row_ids(SqlValue::String("john".to_string())).unwrap().next().unwrap().unwrap(), 1u64);
-        assert_eq!(index.find_row_ids(SqlValue::Integer(3)).unwrap().next().is_none(), true);
+        assert_eq!(index.find_row_ids(&SqlValue::Integer(1)).unwrap().next().unwrap().unwrap(), 3u64);
+        assert_eq!(index.find_row_ids(&SqlValue::String("john".to_string())).unwrap().next().unwrap().unwrap(), 1u64);
+        assert_eq!(index.find_row_ids(&SqlValue::Integer(3)).unwrap().next().is_none(), true);
     }
+
+    #[test]
+     fn insert_row() {
+         let (index_file, table_file_path) = create_index_file();
+
+         let hash_1 = calculate_hash(&1i64).to_le_bytes();
+         let mut contents: Vec<u8> = vec![];
+
+         for row_id in 0..28u64 { // we leave 1 free row in first bucket
+             contents.push(1);
+             contents.extend_from_slice(&hash_1); // hashed value (1)
+             contents.extend_from_slice(&row_id.to_le_bytes()); // row_id (3)
+         }
+
+         contents.resize(512, 0);
+
+         index_file.write_bytes(&contents).unwrap();
+
+         let mut index = HashIndex::new(table_file_path.as_path(), "users", 2).unwrap();
+
+         assert_eq!(index.insert_row(&SqlValue::Integer(1), 999).is_ok(), true);
+         assert_eq!(index.find_row_ids(&SqlValue::Integer(1)).unwrap().last().unwrap().unwrap(), 999u64);
+
+         // inserting to overflow bucket
+         assert_eq!(index.insert_row(&SqlValue::Integer(1), 1000).is_ok(), true);
+         assert_eq!(index.find_row_ids(&SqlValue::Integer(1)).unwrap().last().unwrap().unwrap(), 1000u64);
+
+         let overflow_blob = index_file.read_u64(504).unwrap();
+         let overflow_pointer = u64::from_le_bytes(overflow_blob);
+         assert_eq!(overflow_pointer, 1);
+     }
 }
