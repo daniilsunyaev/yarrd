@@ -1,6 +1,6 @@
-use std::fs;
+use std::fs::{self, OpenOptions};
 use std::path::{Path, PathBuf};
-use std::io::{self, Write};
+use std::io::{self, Read, Write, Seek, SeekFrom};
 use std::env;
 
 use crate::helpers::get_timestamp;
@@ -23,6 +23,23 @@ impl TempFile {
 
     pub fn path(&self) -> &Path {
         self.file_path.as_path()
+    }
+
+    pub fn read_bytes(&self, start_at: u64, size: usize) -> io::Result<Vec<u8>> {
+         let mut hash_file = OpenOptions::new()
+             .read(true)
+             .open(self.file_path.to_str().unwrap())?;
+
+         hash_file.seek(SeekFrom::Start(start_at))?;
+         let mut blob = vec![0u8; size];
+         hash_file.read_exact(&mut blob)?;
+         Ok(blob)
+    }
+
+    pub fn read_u64(&self, start_at: u64) -> io::Result<[u8; 8]> {
+        let bytes: [u8; 8] = self.read_bytes(start_at, 8)?.try_into().unwrap();
+
+        Ok(bytes)
     }
 
     pub fn write_bytes(&self, contents: &[u8]) -> io::Result<()> {

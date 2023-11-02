@@ -85,13 +85,18 @@ impl Pager {
         Ok(())
     }
 
-    pub fn insert_row(&mut self, row: Row) -> Result<(), PagerError> {
-        self.get_last_page()?
-            .insert_row(&row)
-            .or_else(|_err| {
+    pub fn insert_row(&mut self, row: Row) -> Result<u64, PagerError> {
+        let (page_id, page) = self.get_last_page_with_page_id()?;
+        let rows_per_page = Page::calculate_row_count(row.byte_len()) as u64;
+
+         match page.insert_row(&row) {
+             Ok(page_row_id) => Ok(rows_per_page * page_id + page_row_id),
+             Err(_err) => {
                 let page_id = self.allocate_new_page()?;
-                self.get_page(page_id)?.insert_row(&row)
-            })
+                let page_row_id = self.get_page(page_id)?.insert_row(&row)?;
+                Ok(rows_per_page * page_id + page_row_id)
+             },
+         }
     }
 
     pub fn update_row(&mut self, row_id: u64, row: &Row) -> Result<(), PagerError> {
@@ -118,6 +123,7 @@ impl Pager {
             if let Some(movable_row) = last_page.drain_first_row() {
                 let semi_free_page = self.get_page(semi_free_page_id)?;
                 semi_free_page.insert_row(&movable_row)?;
+                // TODO: update index
             }
         }
 
@@ -175,10 +181,6 @@ impl Pager {
             }
         }
         Ok(())
-    }
-
-    fn get_last_page(&mut self) -> Result<&mut Page, PagerError> {
-        Ok(self.get_last_page_with_page_id()?.1)
     }
 
     fn get_last_page_with_page_id(&mut self) -> Result<(u64, &mut Page), PagerError> {

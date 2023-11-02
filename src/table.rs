@@ -1,5 +1,6 @@
 use std::fmt;
 use std::path::PathBuf;
+use std::iter::zip;
 
 use crate::command::{ColumnDefinition, FieldAssignment, SelectColumnName};
 use crate::binary_condition::BinaryCondition;
@@ -66,10 +67,6 @@ struct TableHeaders {
     pub column_types: Vec<ColumnType>,
     pub column_names: Vec<String>,
     pub column_constraints: Vec<Vec<Constraint>>,
-    // eventually index type will be boxed, bus as it looks like I won't have time to implement
-    // B-Tree, inverted, or any other type of index soon, I'm leaving straight index class inside
-    // Option
-    pub column_indexes: Vec<Option<HashIndex>>,
     pub defaults: Vec<SqlValue>,
     checks: Vec<RowCheck>,
 }
@@ -78,6 +75,10 @@ struct TableHeaders {
 pub struct Table {
     headers: TableHeaders,
     pager: Pager,
+    // eventually index type will be boxed, bus as it looks like I won't have time to implement
+    // B-Tree, inverted, or any other type of index soon, I'm leaving straight index class inside
+    // Option
+    column_indexes: Vec<Option<HashIndex>>,
 }
 
 impl Table {
@@ -87,7 +88,10 @@ impl Table {
         let mut column_constraints = vec![vec![]; column_definitions.len()];
         let mut defaults = vec![SqlValue::Null; column_definitions.len()];
         let mut column_indexes = vec![];
-        column_indexes.resize(column_definitions.len(), None);
+        column_indexes.reserve(column_definitions.len());
+        for _ in 0..column_definitions.len() {
+            column_indexes.push(None);
+        } // we have to do this explicitly to avoid implementing Clone trait on hash index
 
         for (i, column_definition) in column_definitions.into_iter().enumerate() {
             column_names.push(column_definition.name.to_string());
@@ -120,10 +124,9 @@ impl Table {
             column_names,
             column_constraints,
             defaults,
-            column_indexes,
         };
 
-        let mut table = Self { pager, headers };
+        let mut table = Self { pager, headers, column_indexes };
         table.compile_checks()?;
 
         Ok(table)
@@ -179,7 +182,7 @@ impl Table {
 
         let mut result = QueryResult { column_names: result_column_names, column_types: result_column_types.clone(), rows: vec![] };
 
-        for row_check in Self::matching_rows(&mut self.pager, &self.headers, where_clause)? {
+        for row_check in Self::matching_rows(&mut self.pager, &mut self.column_indexes, &self.headers, where_clause)? {
             let (_row_number, row) = row_check?;
             let result_row = result.spawn_row();
 
@@ -205,12 +208,14 @@ impl Table {
 
         let (result_values, _indices) = self.apply_defaults(&values, &input_column_indices);
 
-        let row = Row::from_sql_values(result_values, self.column_types())
+        let row = Row::from_sql_values(&result_values, self.column_types())
             .map_err(TableError::CannotGetCell)?;
 
         Self::validate_constraints(&self.headers, &row)?;
 
-        self.pager.insert_row(row).map_err(TableError::CannotInsertRow)
+        // TODO: this should be rollbackable if index update fails
+        let row_id = self.pager.insert_row(row).map_err(TableError::CannotInsertRow)?;
+        self.update_indexes(&input_column_indices, &result_values, row_id)
     }
 
     pub fn update(&mut self, field_assignments: Vec<FieldAssignment>, where_clause: Option<BinaryCondition>) -> Result<(), TableError> {
@@ -222,7 +227,7 @@ impl Table {
         self.validate_values_type(&column_values, &column_indices)?;
         let pager_raw: *mut Pager = &mut self.pager;
 
-        for row_check in Self::matching_rows(&mut self.pager, &self.headers, where_clause)? {
+        for row_check in Self::matching_rows(&mut self.pager, &mut self.column_indexes, &self.headers, where_clause)? {
             let (row_number, mut row) = row_check?;
 
             for (column_number, column_value) in column_values.iter().enumerate() {
@@ -247,7 +252,7 @@ impl Table {
 
     pub fn delete(&mut self, where_clause: Option<BinaryCondition>) -> Result<(), TableError> {
         let pager_raw: *mut Pager = &mut self.pager;
-        for row_check in Self::matching_rows(&mut self.pager, &self.headers, where_clause)? {
+        for row_check in Self::matching_rows(&mut self.pager, &mut self.column_indexes, &mut self.headers, where_clause)? {
             let (row_number, _row) = row_check?;
             // pager will not reallocate to a new space during matching_rows iteration
             // so we can safely dereference raw mut pointer
@@ -300,6 +305,17 @@ impl Table {
         Ok(())
     }
 
+    fn update_indexes(&mut self, input_column_indices: &[usize], result_values: &Vec<SqlValue>, row_id: u64) -> Result<(), TableError> {
+        for (index, value) in zip(input_column_indices, result_values) {
+            match &mut self.column_indexes[*index] {
+                Some(hash_index) => hash_index.insert_row(value, row_id)?,
+                None => {},
+            }
+        }
+
+        Ok(())
+    }
+
     //fn write_column_index(&mut self, column_value: SqlValue, column_index: usize, row_number: u64) {
     //    match self.column_index_types[column_index] {
     //        None => return,
@@ -334,7 +350,8 @@ impl Table {
         self.pager.vacuum().map_err(TableError::VacuumFailed)
     }
 
-    fn matching_rows<'a>(pager: &'a mut Pager, table_headers: &'a TableHeaders, where_clause: Option<BinaryCondition>)
+    fn matching_rows<'a>(pager: &'a mut Pager, column_indexes: &'a mut Vec<Option<HashIndex>>,
+                         table_headers: &'a TableHeaders, where_clause: Option<BinaryCondition>)
         -> Result<impl Iterator<Item = Result<(u64, Row), TableError>> + 'a, TableError> {
 
         let where_filter = match where_clause {
@@ -342,7 +359,7 @@ impl Table {
             Some(where_clause) => where_clause.compile(&table_headers.name, &table_headers.column_names)?,
         };
 
-        let base_query_iter = Self::plan_query(table_headers, pager, &where_filter)?;
+        let base_query_iter = Self::plan_query(pager, column_indexes, &where_filter);
 
         let filter_closure = {
             let column_types = &table_headers.column_types;
@@ -368,16 +385,16 @@ impl Table {
         Ok(base_query_iter.filter_map(filter_closure))
     }
 
-    fn plan_query<'a, 'b>(table_headers: &'a TableHeaders, pager: &'a mut Pager, where_filter: &'b RowCheck)
-        -> Result<Box<dyn Iterator<Item = Result<(u64, Result<Row, TableError>), TableError>> + 'a>, TableError> {
+    fn plan_query<'a, 'b>(pager: &'a mut Pager, column_indexes: &'a mut Vec<Option<HashIndex>>, where_filter: &'b RowCheck)
+        -> Box<dyn Iterator<Item = Result<(u64, Result<Row, TableError>), TableError>> + 'a> {
 
         if let Some((column_number, value)) = where_filter.is_column_value_eq_static_check() {
-            if table_headers.column_indexes[column_number].is_some() {
-                return Self::index_scan(table_headers, pager, column_number, value)
+            if let Some(ref mut column_index) = column_indexes[column_number] {
+                return Self::index_scan(pager, column_index, value)
             }
         }
 
-        Ok(Self::seq_scan(pager))
+        Self::seq_scan(pager)
 
     }
 
@@ -392,24 +409,21 @@ impl Table {
         )
     }
 
-    fn index_scan<'a>(table_headers: &'a TableHeaders, pager: &'a mut Pager, column_number: usize, value: SqlValue)
-        -> Result<Box<dyn Iterator<Item = Result<(u64, Result<Row, TableError>), TableError>> + 'a>, TableError>  {
+    fn index_scan<'a>(pager: &'a mut Pager, column_index: &'a mut HashIndex, value: SqlValue)
+        -> Box<dyn Iterator<Item = Result<(u64, Result<Row, TableError>), TableError>> + 'a>  {
 
-            Ok(
-                Box::new(
-                    table_headers
-                    .column_indexes[column_number].as_ref().unwrap()
-                    .find_row_ids(value)?
-                    .map(|row_number_result| {
-                        row_number_result
-                            .map_err(TableError::HashIndexError)
-                            .map(|row_number| (row_number, pager.get_row(row_number).map_err(TableError::CannotGetRow)))
-                    })
-                    .filter(|result| result.is_err() || result.as_ref().unwrap().1.is_err() || result.as_ref().unwrap().1.as_ref().unwrap().is_some())
-                    .map(|result| result.map(|(row_number, row_check)| (row_number, row_check.map(|row_opt| row_opt.unwrap()))))
-                )
+            Box::new(
+                column_index
+                .find_row_ids(&value)
+                .map(|row_number_result| {
+                    row_number_result
+                        .map_err(TableError::HashIndexError)
+                        .map(|row_number| (row_number, pager.get_row(row_number).map_err(TableError::CannotGetRow)))
+                })
+                .filter(|result| result.is_err() || result.as_ref().unwrap().1.is_err() || result.as_ref().unwrap().1.as_ref().unwrap().is_some())
+                .map(|result| result.map(|(row_number, row_check)| (row_number, row_check.map(|row_opt| row_opt.unwrap()))))
             )
-    }
+        }
 
     fn compile_checks(&mut self) -> Result<(), TableError> {
         self.headers.checks.clear();
