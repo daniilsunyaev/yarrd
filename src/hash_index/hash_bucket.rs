@@ -5,8 +5,9 @@ use std::fs::File;
 use std::io::{self, Seek, SeekFrom, Write, Read};
 
 const ROW_SIZE: usize = 1 + 8 + 8; // is deleted flag + hashed value + disk row number
-const BUCKET_SIZE: usize = 512;
-const ROWS_IN_BUCKET: usize = BUCKET_SIZE / ROW_SIZE - 1; // leave some space for overflow pointer
+pub const BUCKET_SIZE: usize = 512;
+pub const BUCKET_SIZE_U64: u64 = BUCKET_SIZE as u64;
+pub const ROWS_IN_BUCKET: usize = BUCKET_SIZE / ROW_SIZE - 1; // leave some space for overflow pointer
 const OVERFLOW_BUCKET_ADDRESS: usize = BUCKET_SIZE - 8; // rows end at 493th byte, and we use 8 bytes
                                                         // for a pointer to overflow bucket at the end of page
 
@@ -19,9 +20,9 @@ pub struct HashBucket {
 }
 
 pub struct HashRow {
-    presence_flag: u8,
-    hashed_value: u64,
-    row_id: u64,
+    pub presence_flag: u8,
+    pub hashed_value: u64,
+    pub row_id: u64,
 }
 
 impl HashBucket {
@@ -63,7 +64,9 @@ impl HashBucket {
 
                 Ok(HashRow { presence_flag: *presence_flag, hashed_value: current_hashed_value, row_id: potential_row_id })
             })
+            .filter(|hash_row| hash_row.as_ref().unwrap().presence_flag == 1)
     }
+
 
     pub fn find_database_rows(self, hashed_value: u64) -> impl Iterator<Item = Result<u64, HashIndexError>> {
         self.all_index_rows()

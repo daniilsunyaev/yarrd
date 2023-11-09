@@ -87,10 +87,13 @@ pub fn parse_meta_command(input: &str) -> MetaCommand {
     }
 }
 
-pub fn parse_schema_line(table_definition_line: &str) -> Result<(String, Vec<ColumnDefinition>), ParserError> {
+pub fn parse_schema_line(table_definition_line: &str) -> Result<(String, usize, Vec<ColumnDefinition>), ParserError> {
     let tokens = lexer::to_tokens(table_definition_line).map_err(ParserError::LexerError)?;
     let mut token_iter = tokens.iter();
     let table_name = token_iter.next().ok_or(ParserError::TableNameMissing)?.to_string();
+    let row_count_string = token_iter.next().ok_or(ParserError::RowCountMissing)?.to_string();
+    let row_count = row_count_string.parse::<usize>().map_err(|_| ParserError::RowCountInvalid(row_count_string))?;
+
     let mut column_definitions = vec![];
 
     loop {
@@ -105,7 +108,7 @@ pub fn parse_schema_line(table_definition_line: &str) -> Result<(String, Vec<Col
             _ => return Err(ParserError::CommaExpected("column_definitions")),
         }
     }
-    Ok((table_name, column_definitions))
+    Ok((table_name, row_count, column_definitions))
 }
 
 pub fn parse_createdb(input: &str) -> Result<MetaCommand, ParserError> {
@@ -497,8 +500,9 @@ mod tests {
 
     #[test]
     fn parse_valid_schema() {
-        let (table_name, column_definitions) = parse_schema_line("users id int not null default 1 check(id > 0), name string").unwrap();
+        let (table_name, row_count, column_definitions) = parse_schema_line("users 0 id int not null default 1 check(id > 0), name string").unwrap();
         assert_eq!(table_name, "users");
+        assert_eq!(row_count, 0);
         assert_eq!(column_definitions[0].name.to_string(), "id");
         assert!(matches!(column_definitions[0].kind, ColumnType::Integer));
         assert_eq!(column_definitions[0].column_constraints.len(), 3);
@@ -523,7 +527,7 @@ mod tests {
     #[test]
     fn parse_invalid_schema() {
         assert!(matches!(
-                parse_schema_line("users id int not, name string"),
+                parse_schema_line("users 0 id int not, name string"),
                 Err(ParserError::InvalidSchemaDefinition(_))
                 )
                );
