@@ -95,11 +95,11 @@ impl Database {
     }
 
     pub fn parse_schema_line(tables_dir: &Path, table_definition_line: &str) -> Result<Table, MetaCommandError> {
-        let (table_name, column_definitions) = parser::parse_schema_line(table_definition_line)
+        let (table_name, row_count, column_definitions) = parser::parse_schema_line(table_definition_line)
             .map_err(|parser_error| MetaCommandError::ParseError(parser_error.to_string()))?;
         let table_filepath = Self::table_filepath(tables_dir, &table_name);
 
-        Ok(Table::new(table_filepath, &table_name, column_definitions)?)
+        Ok(Table::new(table_filepath, &table_name, row_count, column_definitions)?)
     }
 
     // TODO: return result instead of unwrapping and handle err (probably via logging)
@@ -112,6 +112,7 @@ impl Database {
         writeln!(database_file, "{}", self.tables_dir.to_str().unwrap()).unwrap();
         for (table_name, table) in &self.tables {
             write!(database_file, "{}", table_name).unwrap();
+            write!(database_file, "{}", table.row_count).unwrap();
             for i in 0..table.column_types().len() {
                 write!(database_file, " {} {}", table.column_names()[i], table.column_types()[i]).unwrap();
                 for constraint in &table.column_constraints()[i] {
@@ -158,7 +159,7 @@ impl Database {
         }
 
         File::create(table_filepath.as_path())?;
-        match Table::new(table_filepath.clone(), table_name_string.as_str(), columns) {
+        match Table::new(table_filepath.clone(), table_name_string.as_str(), 0, columns) {
             Ok(table) => {
                 self.tables.insert(table_name_string, table);
                 Ok(None)

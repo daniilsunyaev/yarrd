@@ -28,6 +28,8 @@ pub enum ParserError<'a> {
     IntoMissing,
     TableNameInvalid(&'a Token),
     TableNameMissing,
+    RowCountMissing,
+    RowCountInvalid(String),
     LeftParenthesisExpected(&'a Token, &'static str),
     LeftParenthesisMissing(&'static str),
     RightParenthesisExpected(&'a Token, &'static str),
@@ -100,6 +102,8 @@ impl<'a> fmt::Display for ParserError<'a> {
             Self::IntoMissing => "expected INSERT INTO, got INSERT".to_string(),
             Self::TableNameInvalid(table_name) => format!("'{}' is not a valid table name", table_name),
             Self::TableNameMissing => "table name is not provided".to_string(),
+            Self::RowCountMissing => "row count is not provided".to_string(),
+            Self::RowCountInvalid(token) => format!("row count is expected to be a positive number, '{}' provided instead", token),
             Self::LeftParenthesisExpected(token, entity) =>
                 format!("{} expected to be inside parenthesis, but instead of '(' got '{}'",
                         entity, token),

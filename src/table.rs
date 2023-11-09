@@ -73,6 +73,7 @@ struct TableHeaders {
 
 #[derive(Debug)]
 pub struct Table {
+    pub row_count: usize, // this should go to metadata if we'll introduce more stats
     headers: TableHeaders,
     pager: Pager,
     // eventually index type will be boxed, bus as it looks like I won't have time to implement
@@ -82,7 +83,9 @@ pub struct Table {
 }
 
 impl Table {
-    pub fn new(table_filepath: PathBuf, name: &str, column_definitions: Vec<ColumnDefinition>) -> Result<Table, TableError> {
+    pub fn new(table_filepath: PathBuf, name: &str, row_count: usize, column_definitions: Vec<ColumnDefinition>)
+        -> Result<Table, TableError> {
+
         let mut column_names = vec![];
         let mut column_types = vec![];
         let mut column_constraints = vec![vec![]; column_definitions.len()];
@@ -126,7 +129,7 @@ impl Table {
             defaults,
         };
 
-        let mut table = Self { pager, headers, column_indexes };
+        let mut table = Self { pager, headers, column_indexes, row_count };
         table.compile_checks()?;
 
         Ok(table)
@@ -215,6 +218,7 @@ impl Table {
 
         // TODO: this should be rollbackable if index update fails
         let row_id = self.pager.insert_row(row).map_err(TableError::CannotInsertRow)?;
+        self.row_count += 1;
         self.update_indexes(&input_column_indices, &result_values, row_id)
     }
 
@@ -259,6 +263,7 @@ impl Table {
             unsafe {
                 (*pager_raw).delete_row(row_number).map_err(TableError::CannotDeleteRow)?;
             }
+            self.row_count -= 1;
         }
         Ok(())
     }
@@ -308,31 +313,13 @@ impl Table {
     fn update_indexes(&mut self, input_column_indices: &[usize], result_values: &Vec<SqlValue>, row_id: u64) -> Result<(), TableError> {
         for (index, value) in zip(input_column_indices, result_values) {
             match &mut self.column_indexes[*index] {
-                Some(hash_index) => hash_index.insert_row(value, row_id)?,
+                Some(hash_index) => hash_index.insert_row(value, row_id, self.row_count)?,
                 None => {},
             }
         }
 
         Ok(())
     }
-
-    //fn write_column_index(&mut self, column_value: SqlValue, column_index: usize, row_number: u64) {
-    //    match self.column_index_types[column_index] {
-    //        None => return,
-    //        Some(hash_index) =>
-    //            self.write_column_hash_index(row_number, column_value, column_index),
-    //    }
-    //}
-
-    //fn write_column_hash_index(&mut self, column_value: SqlValue, column_index: usize, buckets_count: u32) {
-    //    let bucket = self.get_bucket(column_index, hashed_value);
-    //    bucket.write_column_index(row_number, hashed_value);
-    //    // collisions_count, (hashed_value, row_number), (hashed_value, row_number), ...
-
-    //    // self.colum_hash_file.write_at(bucket_number * BUCKET_SIZE, )
-    //    // TODO: create bucket class and handle flushing there
-
-    //}
 
     pub fn column_definitions(&self) -> Vec<ColumnDefinition> {
         self.column_names().iter().enumerate().zip(self.column_types().iter())

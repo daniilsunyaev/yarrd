@@ -94,7 +94,3 @@ fn print_prompt() {
     print!("{}", PROMPT);
     io::stdout().flush().expect("error flushing the prompt");
 }
-
-// fn execute_meta_command(input: &str) -> Result<(), String> {
-//     Ok(())
-// }
