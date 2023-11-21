@@ -210,10 +210,10 @@ Supported constraints: `NOT NULL`, `DEFAULT`.
 - implement create index
   - ✓ store hashtable for indexed keys at the hash file and allow to search through index
   - ✓ introduce overflow pages (handle multiple equal values)
-  - increase index buckets count if rows / total hash space > 0.5
-  - update hashtable on insert
-  - update hashtable on delete
-  - update hashtable on update
+  - ✓ increase index buckets count if rows / total hash space > 0.5
+  - ✓ update hashtable on insert
+  - ✓ update hashtable on delete
+  - ✓ update hashtable on update
   - update hashtable on vacuum
   - allow to set index on create table
   - allow to set or delete index on alter table

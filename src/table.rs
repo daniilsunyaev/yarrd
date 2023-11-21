@@ -61,6 +61,11 @@ impl fmt::Display for Constraint {
     }
 }
 
+struct ScanProduct {
+    row_id: u64,
+    row: Row,
+}
+
 #[derive(Debug)]
 struct TableHeaders {
     pub name: String,
@@ -185,8 +190,8 @@ impl Table {
 
         let mut result = QueryResult { column_names: result_column_names, column_types: result_column_types.clone(), rows: vec![] };
 
-        for row_check in Self::matching_rows(&mut self.pager, &mut self.column_indexes, &self.headers, where_clause)? {
-            let (_row_number, row) = row_check?;
+        for scan_result in Self::matching_rows(&mut self.pager, &mut self.column_indexes, &self.headers, where_clause)? {
+            let row = scan_result?.row;
             let result_row = result.spawn_row();
 
             for (i, column_index) in result_column_indices.iter().enumerate() {
@@ -219,7 +224,7 @@ impl Table {
         // TODO: this should be rollbackable if index update fails
         let row_id = self.pager.insert_row(row).map_err(TableError::CannotInsertRow)?;
         self.row_count += 1;
-        self.update_indexes(&input_column_indices, &result_values, row_id)
+        self.update_indexes_on_insert(&input_column_indices, &result_values, row_id)
     }
 
     pub fn update(&mut self, field_assignments: Vec<FieldAssignment>, where_clause: Option<BinaryCondition>) -> Result<(), TableError> {
@@ -231,40 +236,74 @@ impl Table {
         self.validate_values_type(&column_values, &column_indices)?;
         let pager_raw: *mut Pager = &mut self.pager;
 
-        for row_check in Self::matching_rows(&mut self.pager, &mut self.column_indexes, &self.headers, where_clause)? {
-            let (row_number, mut row) = row_check?;
+        let matching_rows = Self::matching_rows(&mut self.pager, &self.column_indexes, &self.headers, where_clause)?;
+        let updation_error = matching_rows
+            .map(|scan_result| {
+                let mut scan_product = scan_result?;
 
-            for (column_number, column_value) in column_values.iter().enumerate() {
-                let column_table_number = column_indices[column_number];
-                row.set_cell(&self.headers.column_types, column_table_number, column_value)
-                    .map_err(TableError::CannotSetCell)?;
+                let mut old_column_values = vec![];
 
-            }
+                for (column_number, column_value) in column_values.iter().enumerate() {
+                    let column_table_number = column_indices[column_number];
+                    old_column_values
+                        .push(scan_product.row.get_cell_sql_value(&self.headers.column_types, column_table_number).map_err(TableError::CannotGetCell)?);
+                    scan_product.row.set_cell(&self.headers.column_types, column_table_number, column_value)
+                        .map_err(TableError::CannotSetCell)?;
 
-            Self::validate_constraints(&self.headers, &row)?;
-            // pager will not reallocate to a new space during matching_rows iteration
-            // so we can safely dereference raw mut pointer
-            // TODO: check if we can move pager_raw and give it back, i.e.
-            // pager_raw = pager_raw.update_row(...)
-            unsafe {
-                (*pager_raw).update_row(row_number, &row).map_err(TableError::CannotUpdateRow)?;
-            }
+                }
+
+                Self::validate_constraints(&self.headers, &scan_product.row)?;
+
+                Self::update_indexes_on_update(&self.column_indexes, scan_product.row_id, &column_indices, &old_column_values, &column_values)?;
+
+                // pager will not reallocate to a new space during matching_rows iteration
+                // so we can safely dereference raw mut pointer
+                // TODO: check if we can move pager_raw and give it back, i.e.
+                // pager_raw = paer_raw.update_row(...) or by using RefCell
+                unsafe {
+                    (*pager_raw)
+                        .update_row(scan_product.row_id, &scan_product.row)
+                        .map_err(TableError::CannotUpdateRow)
+                }
+            })
+            .skip_while(|updation_result: &Result<u64, TableError>| updation_result.is_ok())
+            .next();
+
+        match updation_error {
+            None => Ok(()),
+            Some(error) => Err(error.unwrap_err()),
         }
-
-        Ok(())
     }
 
     pub fn delete(&mut self, where_clause: Option<BinaryCondition>) -> Result<(), TableError> {
         let pager_raw: *mut Pager = &mut self.pager;
-        for row_check in Self::matching_rows(&mut self.pager, &mut self.column_indexes, &mut self.headers, where_clause)? {
-            let (row_number, _row) = row_check?;
-            // pager will not reallocate to a new space during matching_rows iteration
-            // so we can safely dereference raw mut pointer
-            unsafe {
-                (*pager_raw).delete_row(row_number).map_err(TableError::CannotDeleteRow)?;
-            }
-            self.row_count -= 1;
-        }
+        let mut column_values = vec![];
+
+        Self::matching_rows(&mut self.pager, &self.column_indexes, &self.headers, where_clause)?
+            .map(|scan_result| {
+                let scan_product = scan_result?;
+                for column_number in 0..self.headers.column_types.len() {
+                    column_values
+                        .push(
+                            scan_product
+                            .row
+                            .get_cell_sql_value(&self.headers.column_types, column_number)
+                            .map_err(TableError::CannotGetCell)?
+                        );
+                }
+
+                let row_number = scan_product.row_id;
+                Self::update_indexes_on_delete(&self.column_indexes, row_number, &column_values)?;
+                // pager will not reallocate to a new space during matching_rows iteration
+                // so we can safely dereference raw mut pointer
+                unsafe {
+                    (*pager_raw).delete_row(row_number).map_err(TableError::CannotDeleteRow)?;
+                }
+                self.row_count -= 1;
+                Ok::<(), TableError>(())
+        })
+        .for_each(drop);
+
         Ok(())
     }
 
@@ -310,10 +349,35 @@ impl Table {
         Ok(())
     }
 
-    fn update_indexes(&mut self, input_column_indices: &[usize], result_values: &Vec<SqlValue>, row_id: u64) -> Result<(), TableError> {
+    fn update_indexes_on_insert(&mut self, input_column_indices: &[usize], result_values: &Vec<SqlValue>, row_id: u64) -> Result<(), TableError> {
         for (index, value) in zip(input_column_indices, result_values) {
             match &mut self.column_indexes[*index] {
                 Some(hash_index) => hash_index.insert_row(value, row_id, self.row_count)?,
+                None => {},
+            }
+        }
+
+        Ok(())
+    }
+
+    fn update_indexes_on_update(column_indexes: &[Option<HashIndex>], row_id: u64, input_column_indices: &[usize],
+                                old_column_values: &Vec<SqlValue>, new_column_values: &Vec<SqlValue>)
+        -> Result<(), TableError> {
+
+        for (index, (old_value, new_value)) in zip(input_column_indices, zip(old_column_values, new_column_values)) {
+            match &column_indexes[*index] {
+                Some(hash_index) => hash_index.update_row(row_id, old_value, new_value)?,
+                None => {},
+            }
+        }
+
+        Ok(())
+    }
+
+    fn update_indexes_on_delete(column_indexes: &[Option<HashIndex>], row_id: u64, column_values: &[SqlValue]) -> Result<(), TableError> {
+        for (column_index, value) in zip(column_indexes, column_values) {
+            match column_index {
+                Some(hash_index) => hash_index.delete_row(row_id, value)?,
                 None => {},
             }
         }
@@ -337,9 +401,9 @@ impl Table {
         self.pager.vacuum().map_err(TableError::VacuumFailed)
     }
 
-    fn matching_rows<'a>(pager: &'a mut Pager, column_indexes: &'a mut Vec<Option<HashIndex>>,
+    fn matching_rows<'a>(pager: &'a mut Pager, column_indexes: &'a Vec<Option<HashIndex>>,
                          table_headers: &'a TableHeaders, where_clause: Option<BinaryCondition>)
-        -> Result<impl Iterator<Item = Result<(u64, Row), TableError>> + 'a, TableError> {
+        -> Result<impl Iterator<Item = Result<ScanProduct, TableError>> + 'a, TableError> {
 
         let where_filter = match where_clause {
             None => RowCheck::dummy(),
@@ -351,19 +415,14 @@ impl Table {
         let filter_closure = {
             let column_types = &table_headers.column_types;
 
-            move |result| {
-                match result {
-                    Ok((i, row_extraction)) =>
-                        match row_extraction {
-                            Ok(row) => {
-                                match where_filter.matches(&row, column_types) {
-                                    Ok(true) => Some(Ok((i, row))),
-                                    Ok(false) => None,
-                                    Err(error) => Some(Err(error)),
-                                }
-                            },
+            move |scan_result: Result<ScanProduct, TableError>| {
+                match scan_result {
+                    Ok(scan_product) =>
+                        match where_filter.matches(&scan_product.row, column_types) {
+                            Ok(true) => Some(Ok(scan_product)),
+                            Ok(false) => None,
                             Err(error) => Some(Err(error)),
-                        },
+                        }
                     Err(error) => Some(Err(error)),
                 }
             }
@@ -372,45 +431,53 @@ impl Table {
         Ok(base_query_iter.filter_map(filter_closure))
     }
 
-    fn plan_query<'a, 'b>(pager: &'a mut Pager, column_indexes: &'a mut Vec<Option<HashIndex>>, where_filter: &'b RowCheck)
-        -> Box<dyn Iterator<Item = Result<(u64, Result<Row, TableError>), TableError>> + 'a> {
+    fn plan_query<'a, 'b>(pager: &'a mut Pager, column_indexes: &'a Vec<Option<HashIndex>>, where_filter: &'b RowCheck)
+        -> Box<dyn Iterator<Item = Result<ScanProduct, TableError>> + 'a> {
 
         if let Some((column_number, value)) = where_filter.is_column_value_eq_static_check() {
-            if let Some(ref mut column_index) = column_indexes[column_number] {
+            if let Some(ref column_index) = column_indexes[column_number] {
                 return Self::index_scan(pager, column_index, value)
             }
         }
 
         Self::seq_scan(pager)
-
     }
 
-    fn seq_scan(pager: &mut Pager) -> Box<dyn Iterator<Item = Result<(u64, Result<Row, TableError>), TableError>> + '_> {
+    fn seq_scan(pager: &mut Pager) -> Box<dyn Iterator<Item = Result<ScanProduct, TableError>> + '_> {
         let max_rows = pager.max_rows();
 
         Box::new(
             (0..max_rows)
-            .map(|row_number| (row_number, pager.get_row(row_number).map_err(TableError::CannotGetRow)))
-            .filter(|(_row_number, row_check)| row_check.is_err() || row_check.as_ref().unwrap().is_some())
-            .map(|(row_number, row_check)| Ok((row_number, row_check.map(|row_opt| row_opt.unwrap()))))
+            .map(|row_number| (row_number, pager.get_row(row_number)))
+            .filter(|(_, get_row_result)| get_row_result.is_err() || get_row_result.as_ref().unwrap().is_some())
+            .map(|(row_number, get_row_result)| {
+                match get_row_result {
+                    Err(error) => Err(TableError::CannotGetRow(error)),
+                    Ok(Some(row)) => Ok(ScanProduct { row_id: row_number, row: row }),
+                    Ok(None) => panic!("unexpected error: scan result cannot be none, this should be filtered out"),
+                }
+            })
         )
     }
 
-    fn index_scan<'a>(pager: &'a mut Pager, column_index: &'a mut HashIndex, value: SqlValue)
-        -> Box<dyn Iterator<Item = Result<(u64, Result<Row, TableError>), TableError>> + 'a>  {
+    fn index_scan<'a>(pager: &'a mut Pager, column_index: &'a HashIndex, value: SqlValue)
+        -> Box<dyn Iterator<Item = Result<ScanProduct, TableError>> + 'a> {
 
             Box::new(
                 column_index
                 .find_row_ids(&value)
                 .map(|row_number_result| {
-                    row_number_result
-                        .map_err(TableError::HashIndexError)
-                        .map(|row_number| (row_number, pager.get_row(row_number).map_err(TableError::CannotGetRow)))
+                    let row_number = row_number_result?;
+                    let row = pager.get_row(row_number).map_err(TableError::CannotGetRow)?.unwrap();
+                    // if this is None, row_number points to a blank row, and index has invalid data
+                    // TODO: we probably can reindex to recover from this error
+                    Ok(ScanProduct {
+                        row_id: row_number,
+                        row: row,
+                    })
                 })
-                .filter(|result| result.is_err() || result.as_ref().unwrap().1.is_err() || result.as_ref().unwrap().1.as_ref().unwrap().is_some())
-                .map(|result| result.map(|(row_number, row_check)| (row_number, row_check.map(|row_opt| row_opt.unwrap()))))
             )
-        }
+    }
 
     fn compile_checks(&mut self) -> Result<(), TableError> {
         self.headers.checks.clear();

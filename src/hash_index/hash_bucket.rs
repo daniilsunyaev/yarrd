@@ -23,6 +23,7 @@ pub struct HashRow {
     pub presence_flag: u8,
     pub hashed_value: u64,
     pub row_id: u64,
+    pub hash_row_id: u64,
 }
 
 impl HashBucket {
@@ -44,9 +45,10 @@ impl HashBucket {
         Ok(Self { hash_index_file, bucket_number, bytes, modified: false })
     }
 
-    pub fn all_index_rows(self) -> impl Iterator<Item = Result<HashRow, HashIndexError>> {
+    pub fn all_index_rows(&self) -> Vec<Result<HashRow, HashIndexError>> {
         (0..ROWS_IN_BUCKET)
-            .map(move |row_number| {
+            .map(|row_number| {
+                let global_row_number = self.bucket_number * ROWS_IN_BUCKET as u64 + row_number as u64;
                 let mut u64_blob: [u8; 8] = [0; 8];
                 let row_starts_at = row_number * ROW_SIZE;
 
@@ -62,19 +64,46 @@ impl HashBucket {
                     .map_err(SerDeError::CannotReadIntegerBytesError)?;
                 let potential_row_id = u64::from_le_bytes(u64_blob);
 
-                Ok(HashRow { presence_flag: *presence_flag, hashed_value: current_hashed_value, row_id: potential_row_id })
+                Ok(HashRow {
+                    presence_flag: *presence_flag,
+                    hashed_value: current_hashed_value,
+                    row_id: potential_row_id,
+                    hash_row_id: global_row_number,
+                })
             })
             .filter(|hash_row| hash_row.as_ref().unwrap().presence_flag == 1)
+            .collect()
     }
 
+    pub fn delete_row(&mut self, row_id: u64) -> Result<Option<u64>, HashIndexError> {
+        let found_hash_row = self.all_index_rows()
+            .into_iter()
+            .find(|result| {
+                result.is_err() ||
+                    matches!(result, Ok(index_row) if index_row.presence_flag == 1 && index_row.row_id == row_id)
+            });
 
-    pub fn find_database_rows(self, hashed_value: u64) -> impl Iterator<Item = Result<u64, HashIndexError>> {
+        match found_hash_row {
+            None => Ok(None),
+            Some(Ok(row)) => {
+                let row_starts_at = row.hash_row_id as usize * ROW_SIZE;
+                self.bytes[row_starts_at] = 0;
+                self.modified = true;
+                Ok(Some(row_id))
+            }
+            Some(Err(error)) => Err(error),
+        }
+    }
+
+    pub fn find_database_rows(&self, hashed_value: u64) -> Vec<Result<u64, HashIndexError>> {
         self.all_index_rows()
-            .filter(move |result| {
+            .into_iter()
+            .filter(|result| {
                     result.is_err() ||
                         matches!(result, Ok(index_row) if index_row.presence_flag == 1 && index_row.hashed_value == hashed_value)
             })
             .map(|result| result.map(|index_row| index_row.row_id))
+            .collect()
     }
 
     pub fn insert_row(&mut self, hashed_value: u64, row_id: u64) -> Result<(), HashIndexError> {
@@ -125,7 +154,7 @@ impl HashBucket {
         Ok(())
     }
 
-    pub fn bucket_iter_with_overflow_buckets(bucket_number: u64, file: &mut File) -> impl Iterator<Item = HashBucket> + '_ {
+    pub fn bucket_iter_with_overflow_buckets(bucket_number: u64, file: &File) -> impl Iterator<Item = HashBucket> + '_ {
         HashBucketChainIter { file, next_bucket_number: Some(bucket_number) }
     }
 
