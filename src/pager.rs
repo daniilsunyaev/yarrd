@@ -99,12 +99,14 @@ impl Pager {
          }
     }
 
-    pub fn update_row(&mut self, row_id: u64, row: &Row) -> Result<(), PagerError> {
-        let row_number = self.page_row_number(row_id);
-        let page = self.get_page_by_row_id(row_id)?;
+    pub fn update_row(&mut self, row_id: u64, row: &Row) -> Result<u64, PagerError> {
+        let page_row_number = self.page_row_number(row_id);
+        let page_id = self.page_id(row_id);
+        let page = self.get_page(page_id)?;
+        let rows_per_page = Page::calculate_row_count(row.byte_len()) as u64;
 
-        page.update_row(row_number, row);
-        Ok(())
+        page.update_row(page_row_number, row);
+        Ok(rows_per_page * page_id + page_row_number as u64)
     }
 
     pub fn vacuum(&mut self) -> Result<(), PagerError> {

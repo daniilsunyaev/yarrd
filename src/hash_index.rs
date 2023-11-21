@@ -37,10 +37,10 @@ impl HashIndex {
         })
     }
 
-    pub fn find_row_ids(&mut self, column_value: &SqlValue) -> impl Iterator<Item = Result<u64, HashIndexError>> + '_ {
+    pub fn find_row_ids(&self, column_value: &SqlValue) -> impl Iterator<Item = Result<u64, HashIndexError>> + '_ {
         let hashed_value = Self::hash_sql_value(column_value);
 
-        Self::matching_buckets(&mut self.hash_index_file, self.base_buckets_count as u64, hashed_value)
+        Self::matching_buckets(&self.hash_index_file, self.base_buckets_count as u64, hashed_value)
             .map(move |bucket| bucket.find_database_rows(hashed_value))
             .flatten()
     }
@@ -51,24 +51,48 @@ impl HashIndex {
         }
         let hashed_value = Self::hash_sql_value(column_value);
 
-        Self::insert_row_to_file(&mut self.hash_index_file, hashed_value, row_id, self.base_buckets_count)
+        if self
+            .find_row_ids(column_value)
+            .find(|found_row_ids_result| {
+                found_row_ids_result.is_ok() && found_row_ids_result.as_ref().unwrap() == &row_id
+            }).is_some() {
+                Err(HashIndexError::RowAlreadyExists(column_value.clone(), row_id))
+            } else {
+                Self::insert_row_to_file(&self.hash_index_file, hashed_value, row_id, self.base_buckets_count)
+            }
     }
 
-    fn insert_row_to_file(file: &mut File, hashed_value: u64, row_id: u64, base_buckets_count: usize) -> Result<(), HashIndexError> {
+    pub fn update_row(&self, row_id: u64, old_column_value: &SqlValue, new_column_value: &SqlValue) -> Result<(), HashIndexError> {
+        let hashed_old_value = Self::hash_sql_value(old_column_value);
+        let hashed_new_value = Self::hash_sql_value(new_column_value);
+
+        let row_id = self.delete_row_from_file(hashed_old_value, row_id)?;
+        Self::insert_row_to_file(&self.hash_index_file, hashed_new_value, row_id, self.base_buckets_count)
+    }
+
+    pub fn delete_row(&self, row_id: u64, column_value: &SqlValue) -> Result<(), HashIndexError> {
+        let hashed_value = Self::hash_sql_value(column_value);
+
+        self.delete_row_from_file(hashed_value, row_id)?;
+        Ok(())
+    }
+
+    fn insert_row_to_file(file: &File, hashed_value: u64, row_id: u64, base_buckets_count: usize) -> Result<(), HashIndexError> {
         let bucket_with_new_row =
             Self::matching_buckets(file, base_buckets_count as u64, hashed_value)
-            .map(|mut bucket: HashBucket| {
+            .map(|mut bucket| {
                 match bucket.insert_row(hashed_value, row_id) {
-                    Ok(_) => true, // insert successful, finish iteration
-                    Err(_) => false, // keep searching for a free bucket
+                    Err(HashIndexError::BucketIsFull)  => Ok(true), // this bucket is full, need to continue iteration
+                    Ok(_) => Ok(false), // insertion successful no need to continue iteration
+                    Err(other_error)  => Err(other_error), // serialization error, can't insert
                 }
             })
-            .skip_while(|&insertion_result| insertion_result == false)
+            .skip_while(|insertion_result| insertion_result.is_ok() && insertion_result.as_ref().unwrap() == &true)
             .next();
 
-
         match bucket_with_new_row {
-            Some(_) => Ok(()),
+            Some(Ok(_)) => Ok(()),
+            Some(Err(error)) => Err(error),
             None => {
                 Self::matching_buckets(file, base_buckets_count as u64, hashed_value)
                     .last()
@@ -76,6 +100,20 @@ impl HashIndex {
                     .spawn_overflow_bucket()?
                     .insert_row(hashed_value, row_id)
             }
+        }
+    }
+
+    fn delete_row_from_file(&self, hashed_old_value: u64, row_id: u64) -> Result<u64, HashIndexError> {
+        let last_deleted_row =
+            Self::matching_buckets(&self.hash_index_file, self.base_buckets_count as u64, hashed_old_value)
+            .map(|mut bucket| bucket.delete_row(row_id))
+            .skip_while(|deletion_result| deletion_result.is_ok() && deletion_result.as_ref().unwrap().is_none())
+            .next();
+
+        match last_deleted_row {
+            Some(Ok(_)) => Ok(row_id),
+            Some(Err(error)) => Err(error),
+            None => Err(HashIndexError::RowDoesNotExists(row_id)),
         }
     }
 
@@ -90,7 +128,7 @@ impl HashIndex {
 
         for hash_row_result in self.each_row() {
             let hash_row = hash_row_result.as_ref().unwrap();
-            Self::insert_row_to_file(&mut swap_hash_index_file, hash_row.hashed_value, hash_row.row_id, self.base_buckets_count * 2)?
+            Self::insert_row_to_file(&swap_hash_index_file, hash_row.hashed_value, hash_row.row_id, self.base_buckets_count * 2)?
         }
 
         let total_buckets = swap_hash_index_file.metadata()?.len() / hash_bucket::BUCKET_SIZE_U64;
@@ -122,7 +160,7 @@ impl HashIndex {
             .map(|bucket_number| HashBucket::new(&self.hash_index_file, bucket_number))
     }
 
-    fn matching_buckets(hash_index_file: &mut File, base_buckets_count: u64, hashed_value: u64) -> impl Iterator<Item = HashBucket> + '_ {
+    fn matching_buckets(hash_index_file: &File, base_buckets_count: u64, hashed_value: u64) -> impl Iterator<Item = HashBucket> + '_ {
         let primary_bucket_number = hashed_value % base_buckets_count;
         HashBucket::bucket_iter_with_overflow_buckets(primary_bucket_number, hash_index_file)
     }
@@ -201,7 +239,7 @@ mod tests {
         index_file.write_bytes(&contents)
             .expect("seed contents should be writable to index file");
 
-        let mut index = HashIndex::new(table_file_path.as_path(), "users", 1, 2)
+        let index = HashIndex::new(table_file_path.as_path(), "users", 1, 2)
             .expect("hash index should be creatable from seed file");
 
         assert_eq!(index.find_row_ids(&SqlValue::Integer(1)).next().unwrap().unwrap(), 3u64);
@@ -273,5 +311,46 @@ mod tests {
         let overflow_blob = index_file.read_u64(504).expect("cannot read overflow bucket number blob");
         let overflow_pointer = u64::from_le_bytes(overflow_blob);
         assert_eq!(overflow_pointer, 0); // no overflow
+    }
+
+    #[test]
+    fn update_and_delete_row() {
+        let (index_file, table_file_path) = create_index_file();
+
+        let hash_1 = calculate_hash(&1i64).to_le_bytes();
+        let mut contents: Vec<u8> = vec![];
+
+        for row_id in 0..2u64 {
+            contents.push(1);
+            contents.extend_from_slice(&hash_1);
+            contents.extend_from_slice(&row_id.to_le_bytes());
+        }
+
+        contents.resize(512, 0);
+
+        index_file.write_bytes(&contents)
+            .expect("seed contents should be writable to index file");
+
+        let index = HashIndex::new(table_file_path.as_path(), "users", 1, 2)
+            .expect("hash index should be creatable from seed file");
+
+        assert_eq!(index.update_row(1, &SqlValue::Integer(1), &SqlValue::Integer(3)).is_ok(), true);
+        assert_eq!(index.find_row_ids(&SqlValue::Integer(3)).last().unwrap().unwrap(), 1u64);
+
+        let mut ids_with_3 = index.find_row_ids(&SqlValue::Integer(3));
+        assert_eq!(ids_with_3.next().is_some(), true);
+        assert_eq!(ids_with_3.next().is_none(), true);
+
+        let mut ids_with_1 = index.find_row_ids(&SqlValue::Integer(1));
+        assert_eq!(ids_with_1.next().is_some(), true);
+        assert_eq!(ids_with_1.next().is_none(), true);
+
+        assert_eq!(index.update_row(8, &SqlValue::Integer(1), &SqlValue::Integer(3)).is_err(), true);
+
+        assert_eq!(index.delete_row(0, &SqlValue::Integer(1)).is_ok(), true);
+
+        let mut ids_with_1 = index.find_row_ids(&SqlValue::Integer(1));
+        println!("ids with 1 {:?}", ids_with_1.next());
+        assert_eq!(ids_with_1.next().is_none(), true);
     }
 }

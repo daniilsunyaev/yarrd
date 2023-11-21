@@ -11,6 +11,8 @@ pub enum HashIndexError {
     SerDeError(SerDeError),
     BucketIsFull,
     UnexpectedBucketNumber(u64),
+    RowAlreadyExists(SqlValue, u64),
+    RowDoesNotExists(u64),
 }
 
 impl From<io::Error> for HashIndexError {
@@ -33,6 +35,8 @@ impl fmt::Display for HashIndexError {
             Self::SerDeError(serde_error) => write!(f, "{}", serde_error),
             Self::BucketIsFull => write!(f, "bucket is full, need to reindex"),
             Self::UnexpectedBucketNumber(number) => write!(f, "bucket {} does not exist, and cannot be a new overflow bucket", number),
+            Self::RowAlreadyExists(value, row_id) => write!(f, "attempted to insert value '{}' with row_id '{}' but is already present in the index", value, row_id),
+            Self::RowDoesNotExists(hash_row_id) => write!(f, "attempted to find hash row value '{}' but this row does not present in index", hash_row_id),
         }
     }
 }
