@@ -82,12 +82,12 @@ impl HashIndex {
             Self::matching_buckets(file, base_buckets_count as u64, hashed_value)
             .map(|mut bucket| {
                 match bucket.insert_row(hashed_value, row_id) {
-                    Err(HashIndexError::BucketIsFull)  => Ok(true), // this bucket is full, need to continue iteration
-                    Ok(_) => Ok(false), // insertion successful no need to continue iteration
+                    Err(HashIndexError::BucketIsFull)  => Ok(false), // this bucket is full, need to continue iteration
+                    Ok(_) => Ok(true), // insertion successful no need to continue iteration
                     Err(other_error)  => Err(other_error), // serialization error, can't insert
                 }
             })
-            .skip_while(|insertion_result| insertion_result.is_ok() && insertion_result.as_ref().unwrap() == &true)
+            .skip_while(|insertion_result| insertion_result.is_ok() && insertion_result.as_ref().unwrap() == &false)
             .next();
 
         match bucket_with_new_row {

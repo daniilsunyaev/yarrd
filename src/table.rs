@@ -304,12 +304,6 @@ impl Table {
         })
         .for_each(drop);
 
-        // TODO: add delete index row or smth like that
-        //for row_id_result in deleted_row_ids_results {
-        //    let row_id = row_id_result?;
-        //    self.update_indexes(&column_indices, &column_values, row_id)?;
-        //}
-
         Ok(())
     }
 
