@@ -117,6 +117,12 @@ impl HashIndex {
         }
     }
 
+    pub fn clear(&mut self) -> Result<(), HashIndexError> {
+        self.hash_index_file.set_len(0)?;
+        self.hash_index_file.rewind()?;
+        Ok(())
+    }
+
     pub fn increase_buckets_count(&mut self) -> Result<(), HashIndexError> {
         let mut swap_hash_index_file = OpenOptions::new()
             .write(true)
