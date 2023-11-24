@@ -417,7 +417,6 @@ impl Table {
         Self::seq_scan(&mut self.pager)
             .map(|scan_result| {
                 let scan_product = scan_result?;
-                //for (column_number, column_index) in enumerated_column_indexes {
                 enumerated_column_indexes
                     .iter_mut()
                     .map(|(column_number, column_index)| {
