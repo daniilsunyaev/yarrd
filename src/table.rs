@@ -398,7 +398,39 @@ impl Table {
     }
 
     pub fn vacuum(&mut self) -> Result<(), TableError> {
-        self.pager.vacuum().map_err(TableError::VacuumFailed)
+        self.pager.vacuum().map_err(TableError::VacuumFailed)?;
+        self.reindex()
+    }
+
+    fn reindex(&mut self) -> Result<(), TableError> {
+        let mut enumerated_column_indexes: Vec<(usize, &mut HashIndex)> = self.column_indexes
+            .iter_mut()
+            .enumerate()
+            .filter(|(_i, column_index_option)| column_index_option.is_some())
+            .map(|(i, column_index_option)| (i, column_index_option.as_mut().unwrap()))
+            .collect();
+
+        enumerated_column_indexes.iter_mut()
+            .map(|(_i, column_index)| column_index.clear().map_err(TableError::HashIndexError))
+            .collect::<Result<(), TableError>>()?;
+
+        Self::seq_scan(&mut self.pager)
+            .map(|scan_result| {
+                let scan_product = scan_result?;
+                enumerated_column_indexes
+                    .iter_mut()
+                    .map(|(column_number, column_index)| {
+                        let value = scan_product
+                            .row
+                            .get_cell_sql_value(&self.headers.column_types, *column_number)
+                            .map_err(TableError::CannotGetCell)?;
+
+                        column_index.insert_row(&value, scan_product.row_id, self.row_count)
+                            .map_err(TableError::HashIndexError)
+                    })
+                .collect::<Result<(), TableError>>()
+            })
+            .collect::<Result<(), TableError>>()
     }
 
     fn matching_rows<'a>(pager: &'a mut Pager, column_indexes: &'a Vec<Option<HashIndex>>,
