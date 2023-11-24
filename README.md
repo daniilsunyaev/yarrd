@@ -214,7 +214,7 @@ Supported constraints: `NOT NULL`, `DEFAULT`.
   - ✓ update hashtable on insert
   - ✓ update hashtable on delete
   - ✓ update hashtable on update
-  - update hashtable on vacuum
+  - ✓ update hashtable on vacuum
   - allow to set index on create table
   - allow to set or delete index on alter table
   - implement REINDEX
