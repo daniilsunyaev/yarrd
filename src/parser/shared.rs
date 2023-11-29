@@ -28,6 +28,18 @@ where
     }
 }
 
+// TODO: use parse_entity_name method or something
+pub fn parse_index_name<'a, I>(mut token: I) -> Result<SqlValue, ParserError<'a>>
+where
+    I: Iterator<Item = &'a Token>
+{
+    match token.next() {
+        Some(Token::Value(name)) => Ok(name.clone()),
+        Some(token) => Err(ParserError::IndexNameInvalid(token)),
+        None => Err(ParserError::IndexNameMissing),
+    }
+}
+
 pub fn parse_column_type<'a, I>(mut token: I) -> Result<ColumnType, ParserError<'a>>
 where
     I: Iterator<Item = &'a Token>
@@ -86,6 +98,27 @@ where
     }
 }
 
+pub fn parse_parenthesised_cs_column_names<'a, I>(mut token: I) -> Result<Vec<SqlValue>, ParserError<'a>>
+where
+    I: Iterator<Item = &'a Token>
+{
+    let mut columns = vec![];
+
+    parse_left_parenthesis(&mut token, "column names")?;
+
+    loop {
+        let name = parse_column_name(&mut token)?;
+        columns.push(name);
+
+        match parse_csl_right_parenthesis(&mut token, "column names")? {
+            true => break,
+            false => { },
+        };
+    }
+
+    Ok(columns)
+}
+
 pub fn parse_column_definition<'a, I>(mut token: I) -> Result<(ColumnDefinition, Option<Token>), ParserError<'a>>
 where
     I: Iterator<Item = &'a Token>
@@ -93,7 +126,7 @@ where
         let name = parse_column_name(&mut token)?;
         let kind = parse_column_type(&mut token)?;
         let (constraint_tokens, last_token) = collect_constraint_tokens(&mut token)?;
-        let column_constraints = parse_constraint_tokens(constraint_tokens)?;
+        let column_constraints = parse_constraint_tokens(constraint_tokens.clone())?;
 
         Ok((ColumnDefinition { name, kind, column_constraints }, last_token))
 }
@@ -119,6 +152,7 @@ where
                 }
             },
             Some(Token::Comma) => return Ok((tokens, Some(Token::Comma))),
+            Some(Token::Semicolon) => return Ok((tokens, Some(Token::Semicolon))),
             Some(token) => tokens.push(token),
             None => return Ok((tokens, None)),
         }

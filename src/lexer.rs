@@ -7,6 +7,7 @@ pub enum Token {
     LeftParenthesis,
     RightParenthesis,
     Comma,
+    Semicolon,
     Less,
     Greater,
     Equals,
@@ -52,6 +53,7 @@ impl fmt::Display for Token {
             Self::LeftParenthesis => "(",
             Self::RightParenthesis => ")",
             Self::Comma => ",",
+            Self::Semicolon => ";",
             Self::Less => "<",
             Self::Greater => ">",
             Self::Equals => "=",
@@ -211,6 +213,7 @@ fn parse_token(str_token: &str) -> Token {
         "(" => Token::LeftParenthesis,
         ")" => Token::RightParenthesis,
         "," => Token::Comma,
+        ";" => Token::Semicolon,
         "*" => Token::AllColumns,
         "insert" => Token::Insert,
         "into" => Token::Into,
@@ -267,7 +270,7 @@ mod tests {
         let valid_input = "create TABLE,table_name RENAME Column not NULL Default add (row columnn type int float to string (,) ";
         let another_valid_input = "token*from alter CHECK foo ( < 2) Index";
         let invalid_input = "create (row \"column, type\" int string\" yy ";
-        let another_invalid_input = ";123abc";
+        let another_invalid_input = ";123abc:";
 
         assert!(to_tokens(valid_input).is_ok());
         assert!(to_tokens(another_valid_input).is_ok());

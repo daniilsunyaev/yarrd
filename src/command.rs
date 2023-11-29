@@ -76,6 +76,11 @@ pub enum Command {
         table_name: SqlValue,
         column_name: SqlValue,
     },
+    CreateIndex {
+        index_name: SqlValue,
+        table_name: SqlValue,
+        column_name: SqlValue,
+    },
     VacuumTable {
         table_name: SqlValue,
     },
@@ -508,6 +513,57 @@ mod tests {
         };
         assert!(database.execute(vacuum_table).is_ok());
         assert_eq!(fs::metadata(users_table_path.as_path()).unwrap().len(), PAGE_SIZE as u64);
+    }
+
+    #[test]
+    fn create_table_with_index_multiple_insert_and_select() {
+        let (db_file, mut database) = open_test_database();
+        let create_table = Command::CreateTable {
+            table_name: SqlValue::Identificator("users".to_string()),
+            columns: vec![
+                ColumnDefinition {
+                    name: SqlValue::Identificator("id".to_string()),
+                    kind: ColumnType::Integer,
+                    column_constraints: vec![],
+                },
+                ColumnDefinition {
+                    name: SqlValue::Identificator("name".to_string()),
+                    kind: ColumnType::String,
+                    column_constraints: vec![],
+                },
+            ],
+        };
+        // row size is 1 + 8 + 256 = 265 bytes, i.e. we can fit 15 rows per page
+        database.execute(create_table).expect("database create table statement should be successful");
+
+        let create_index = Command::CreateIndex {
+            table_name: SqlValue::Identificator("users".to_string()),
+            index_name: SqlValue::Identificator("users-id".to_string()),
+            column_name: SqlValue::Identificator("id".to_string()),
+        };
+        database.execute(create_index).expect("database create index statement should be successful");
+
+        for id in 0..31 {
+            let insert_into_table = Command::InsertInto {
+                table_name: SqlValue::Identificator("users".to_string()),
+                column_names: Some(vec![SqlValue::Identificator("id".to_string())]),
+                values: vec![SqlValue::Integer(id)],
+            };
+            let insert_into_table_result = database.execute(insert_into_table);
+            insert_into_table_result.expect("insert into table statement should be executed successfuly");
+        }
+
+        let select_from_table = Command::Select {
+            table_name: SqlValue::Identificator("users".to_string()),
+            column_names: vec![SelectColumnName::Name(SqlValue::Identificator("id".to_string()))],
+            where_clause: Some(BinaryCondition {
+                left_value: SqlValue::Integer(10),
+                right_value: SqlValue::Identificator("users.id".to_string()),
+                operator: CmpOperator::Equals,
+            }),
+        };
+        let select_result = database.execute(select_from_table);
+        assert!(matches!(select_result, Ok(Some(_))));
     }
 
     fn open_test_database() -> (TempFile, Database) {

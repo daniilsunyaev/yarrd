@@ -4,10 +4,11 @@ use crate::serialize::SerDeError;
 use std::fs::File;
 use std::io::{self, Seek, SeekFrom, Write, Read};
 
-const ROW_SIZE: usize = 1 + 8 + 8; // is deleted flag + hashed value + disk row number
+pub const ROW_SIZE: usize = 1 + 8 + 8; // is deleted flag + hashed value + disk row number
 pub const BUCKET_SIZE: usize = 512;
 pub const BUCKET_SIZE_U64: u64 = BUCKET_SIZE as u64;
 pub const ROWS_IN_BUCKET: usize = BUCKET_SIZE / ROW_SIZE - 1; // leave some space for overflow pointer
+pub const TOTAL_BUCKETS_ADDRESS: usize = BUCKET_SIZE - 16; // 8 bytes for total buckets count in first bucket
 const OVERFLOW_BUCKET_ADDRESS: usize = BUCKET_SIZE - 8; // rows end at 493th byte, and we use 8 bytes
                                                         // for a pointer to overflow bucket at the end of page
 
@@ -19,6 +20,7 @@ pub struct HashBucket {
     bytes: [u8; BUCKET_SIZE],
 }
 
+#[derive(Debug)]
 pub struct HashRow {
     pub presence_flag: u8,
     pub hashed_value: u64,
@@ -37,6 +39,11 @@ impl HashBucket {
         } else if bucket_starts_at > file_len {
             return Err(HashIndexError::UnexpectedBucketNumber(bucket_number))
         };
+
+        if file_len == 0 {
+            hash_index_file.seek(SeekFrom::Start(TOTAL_BUCKETS_ADDRESS as u64))?;
+            hash_index_file.write_all(&(1u64.to_le_bytes()))?;
+        }
 
         hash_index_file.seek(SeekFrom::Start(bucket_number * BUCKET_SIZE as u64))?;
         let mut bytes = [0u8; BUCKET_SIZE];
@@ -63,6 +70,7 @@ impl HashBucket {
                     .read(&mut u64_blob)
                     .map_err(SerDeError::CannotReadIntegerBytesError)?;
                 let potential_row_id = u64::from_le_bytes(u64_blob);
+
 
                 Ok(HashRow {
                     presence_flag: *presence_flag,
@@ -156,6 +164,16 @@ impl HashBucket {
 
     pub fn bucket_iter_with_overflow_buckets(bucket_number: u64, file: &File) -> impl Iterator<Item = HashBucket> + '_ {
         HashBucketChainIter { file, next_bucket_number: Some(bucket_number) }
+    }
+
+    pub fn primary_buckets_count(&self) -> Result<u64, HashIndexError> {
+        let mut u64_blob: [u8; 8] = [0; 8];
+
+        (&self.bytes[TOTAL_BUCKETS_ADDRESS..])
+            .read(&mut u64_blob)
+            .map_err(SerDeError::CannotReadIntegerBytesError)?;
+
+        Ok(u64::from_le_bytes(u64_blob))
     }
 
     fn flush(&mut self) -> Result<(), io::Error> {
