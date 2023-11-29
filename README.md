@@ -214,9 +214,10 @@ Supported constraints: `NOT NULL`, `DEFAULT`.
   - ✓ update hashtable on insert
   - ✓ update hashtable on delete
   - ✓ update hashtable on update
-  - update hashtable on vacuum
-  - allow to set index on create table
-  - allow to set or delete index on alter table
+  - ✓ update hashtable on vacuum
+  - ✓ allow to create index on table, save index in schema
+  - allow to drop index on table
+  - adjust index on alter table
   - implement REINDEX
 - do not allow two columns with the same names in a table
 - implement unique constraint
@@ -225,6 +226,7 @@ Supported constraints: `NOT NULL`, `DEFAULT`.
 - think if we should rename 'validate_row_over_constraint' to smth like "check_not_null_constraints"
 - check if we can avoid generating byte layout for every row when using where
 - introduce NOT
+- dry parser 'parse_index_name', 'parse_column_name' etc, since those differ only be error messages
 - remove tables dir if it is empty after tables cleanup
 - maybe use peek and rewrite parser in more of decoupeled manner? Try to allow keyword names
 - add table column names -> column offset hashmap

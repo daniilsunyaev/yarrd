@@ -95,11 +95,13 @@ impl Database {
     }
 
     pub fn parse_schema_line(tables_dir: &Path, table_definition_line: &str) -> Result<Table, MetaCommandError> {
-        let (table_name, row_count, column_definitions) = parser::parse_schema_line(table_definition_line)
+        let (table_name, row_count, column_definitions, indexes_definitions) =
+            parser::parse_schema_line(table_definition_line)
             .map_err(|parser_error| MetaCommandError::ParseError(parser_error.to_string()))?;
+
         let table_filepath = Self::table_filepath(tables_dir, &table_name);
 
-        Ok(Table::new(table_filepath, &table_name, row_count, column_definitions)?)
+        Ok(Table::new(table_filepath, &table_name, row_count, column_definitions, indexes_definitions)?)
     }
 
     // TODO: return result instead of unwrapping and handle err (probably via logging)
@@ -112,7 +114,7 @@ impl Database {
         writeln!(database_file, "{}", self.tables_dir.to_str().unwrap()).unwrap();
         for (table_name, table) in &self.tables {
             write!(database_file, "{}", table_name).unwrap();
-            write!(database_file, "{}", table.row_count).unwrap();
+            write!(database_file, " {}", table.row_count).unwrap();
             for i in 0..table.column_types().len() {
                 write!(database_file, " {} {}", table.column_names()[i], table.column_types()[i]).unwrap();
                 for constraint in &table.column_constraints()[i] {
@@ -122,8 +124,25 @@ impl Database {
                 if i < table.column_types().len() - 1 {
                     write!(database_file, ",").unwrap();
                 }
-
             }
+
+            write!(database_file, ";").unwrap();
+
+            let indexes: Vec<_> =
+                table.column_indexes().iter().enumerate()
+                .filter(|(_i, index_option)| index_option.is_some())
+                .map(|(i, index_option)| (i, index_option.as_ref().unwrap()))
+                .collect();
+
+            for index_number in 0..indexes.len() {
+                let (column_number, index_ref) = indexes[index_number];
+                write!(database_file, " {} {}", column_number, index_ref.name).unwrap();
+                if index_number < indexes.len() - 1 {
+                    write!(database_file, ",").unwrap();
+                }
+            }
+
+            write!(database_file, ";").unwrap();
             writeln!(database_file).unwrap();
         }
     }
@@ -145,6 +164,7 @@ impl Database {
             Command::DropColumnConstraint { table_name, column_name, constraint } =>
                 self.drop_table_column_constraint(table_name, column_name, constraint),
             Command::DropTableColumn { table_name, column_name } => self.drop_table_column(table_name, column_name),
+            Command::CreateIndex { table_name, index_name, column_name } => self.create_table_index(index_name, table_name, column_name),
             Command::VacuumTable { table_name } => self.vacuum_table(&table_name),
             Command::Void => Ok(None),
         }
@@ -159,7 +179,7 @@ impl Database {
         }
 
         File::create(table_filepath.as_path())?;
-        match Table::new(table_filepath.clone(), table_name_string.as_str(), 0, columns) {
+        match Table::new(table_filepath.clone(), table_name_string.as_str(), 0, columns, vec![]) {
             Ok(table) => {
                 self.tables.insert(table_name_string, table);
                 Ok(None)
@@ -299,6 +319,15 @@ impl Database {
         }
     }
 
+    fn create_table_index(&mut self, index_name: SqlValue, table_name: SqlValue, column_name: SqlValue) -> Result<Option<QueryResult>, ExecutionError> {
+        let tables_dir = self.tables_dir.clone();
+        let table = self.get_table(&table_name)?;
+        let column_name_string = column_name.to_string();
+        let index_name_string = index_name.to_string();
+        table.create_index(&column_name_string, index_name_string, tables_dir.as_path())?;
+        Ok(None)
+    }
+
     fn move_extended_records_to_new_table_and_swap_tables(&mut self, target_table_name: &SqlValue, temp_new_table_name: &SqlValue,
                                                  table_column_types: &[ColumnType]) -> Result<Option<QueryResult>, ExecutionError> {
         let all_rows_query_option = self.select_rows(target_table_name.clone(), vec![SelectColumnName::AllColumns], None)?;
@@ -360,7 +389,7 @@ impl Database {
 
     fn drop_table_column(&mut self, table_name: SqlValue, column_name: SqlValue) -> Result<Option<QueryResult>, ExecutionError> {
         let table = self.get_table(&table_name)?;
-        let droped_column_index = table.column_index_result(column_name.to_string().as_str())?;
+        let droped_column_index = table.column_number_result(column_name.to_string().as_str())?;
         let mut new_column_definitions = table.column_definitions();
         let table_column_types = table.column_types().to_vec();
         new_column_definitions.remove(droped_column_index);

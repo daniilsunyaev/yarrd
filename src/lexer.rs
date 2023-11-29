@@ -7,6 +7,7 @@ pub enum Token {
     LeftParenthesis,
     RightParenthesis,
     Comma,
+    Semicolon,
     Less,
     Greater,
     Equals,
@@ -15,6 +16,7 @@ pub enum Token {
     GreaterEquals,
     Insert,
     Into,
+    On,
     Select,
     AllColumns,
     From,
@@ -30,6 +32,7 @@ pub enum Token {
     Add,
     Column,
     Table,
+    Index,
     Values,
     Is,
     Not,
@@ -50,6 +53,7 @@ impl fmt::Display for Token {
             Self::LeftParenthesis => "(",
             Self::RightParenthesis => ")",
             Self::Comma => ",",
+            Self::Semicolon => ";",
             Self::Less => "<",
             Self::Greater => ">",
             Self::Equals => "=",
@@ -58,6 +62,7 @@ impl fmt::Display for Token {
             Self::GreaterEquals => ">=",
             Self::Insert => "INSERT",
             Self::Into => "INTO",
+            Self::On => "ON",
             Self::Select => "SELECT",
             Self::AllColumns => "*",
             Self::From => "FROM",
@@ -73,6 +78,7 @@ impl fmt::Display for Token {
             Self::Add => "ADD",
             Self::Column => "COLUMN",
             Self::Table => "TABLE",
+            Self::Index => "INDEX",
             Self::Values => "VALUES",
             Self::Is => "IS",
             Self::Not => "NOT",
@@ -207,9 +213,11 @@ fn parse_token(str_token: &str) -> Token {
         "(" => Token::LeftParenthesis,
         ")" => Token::RightParenthesis,
         "," => Token::Comma,
+        ";" => Token::Semicolon,
         "*" => Token::AllColumns,
         "insert" => Token::Insert,
         "into" => Token::Into,
+        "on" => Token::On,
         "select" => Token::Select,
         "from" => Token::From,
         "where" => Token::Where,
@@ -224,6 +232,7 @@ fn parse_token(str_token: &str) -> Token {
         "add" => Token::Add,
         "column" => Token::Column,
         "table" => Token::Table,
+        "index" => Token::Index,
         "values" => Token::Values,
         "is" => Token::Is,
         "not" => Token::Not,
@@ -259,9 +268,9 @@ mod tests {
     #[test]
     fn token_parse() {
         let valid_input = "create TABLE,table_name RENAME Column not NULL Default add (row columnn type int float to string (,) ";
-        let another_valid_input = "token*from alter CHECK foo ( < 2)";
+        let another_valid_input = "token*from alter CHECK foo ( < 2) Index";
         let invalid_input = "create (row \"column, type\" int string\" yy ";
-        let another_invalid_input = ";123abc";
+        let another_invalid_input = ";123abc:";
 
         assert!(to_tokens(valid_input).is_ok());
         assert!(to_tokens(another_valid_input).is_ok());
@@ -280,7 +289,7 @@ mod tests {
             vec![
                 Token::Value(SqlValue::Identificator("token".to_string())), Token::AllColumns, Token::From, Token::Alter,
                 Token::Check, Token::Value(SqlValue::Identificator("foo".into())), Token::LeftParenthesis,
-                Token::Less, Token::Value(SqlValue::Integer(2)), Token::RightParenthesis
+                Token::Less, Token::Value(SqlValue::Integer(2)), Token::RightParenthesis, Token::Index
             ]);
 
         assert!(matches!(to_tokens(invalid_input), Err(LexerError::IncompleteString)));
@@ -292,7 +301,7 @@ mod tests {
 
     #[test]
     fn token_qoutes_parse() {
-        let valid_input = "CrEAte vacuum (row NULL \"column, type\" constraint int -421 string 43.2552 \" ; \"";
+        let valid_input = "CrEAte vacuum (row NULL \"column, type\" constraint int -421 string 43.2552 \" ; \" on";
 
         assert!(to_tokens(valid_input).is_ok());
         assert_eq!(
@@ -301,7 +310,7 @@ mod tests {
                 Token::Create, Token::Vacuum, Token::LeftParenthesis, Token::Value(SqlValue::Identificator("row".into())),
                 Token::Value(SqlValue::Null), Token::Value(SqlValue::String("column, type".to_string())),
                 Token::Constraint, Token::IntegerType, Token::Value(SqlValue::Integer(-421)), Token::StringType,
-                Token::Value(SqlValue::Float(43.2552)), Token::Value(SqlValue::String(" ; ".into()))
+                Token::Value(SqlValue::Float(43.2552)), Token::Value(SqlValue::String(" ; ".into())), Token::On
             ]
         )
     }

@@ -15,7 +15,7 @@ use select::parse_select_statement;
 use delete::parse_delete_statement;
 use alter::parse_alter_statement;
 use vacuum::parse_vacuum_statement;
-use crate::parser::shared::parse_column_definition;
+use crate::parser::shared::{parse_column_definition, parse_index_name};
 
 mod create;
 mod drop;
@@ -87,13 +87,14 @@ pub fn parse_meta_command(input: &str) -> MetaCommand {
     }
 }
 
-pub fn parse_schema_line(table_definition_line: &str) -> Result<(String, usize, Vec<ColumnDefinition>), ParserError> {
+pub fn parse_schema_line(table_definition_line: &str) -> Result<(String, usize, Vec<ColumnDefinition>, Vec<(usize, String)>), ParserError> {
     let tokens = lexer::to_tokens(table_definition_line).map_err(ParserError::LexerError)?;
     let mut token_iter = tokens.iter();
     let table_name = token_iter.next().ok_or(ParserError::TableNameMissing)?.to_string();
     let row_count_string = token_iter.next().ok_or(ParserError::RowCountMissing)?.to_string();
     let row_count = row_count_string.parse::<usize>().map_err(|_| ParserError::RowCountInvalid(row_count_string))?;
 
+    let mut indexes_definitions = vec![];
     let mut column_definitions = vec![];
 
     loop {
@@ -104,11 +105,50 @@ pub fn parse_schema_line(table_definition_line: &str) -> Result<(String, usize, 
 
         match last_token {
             Some(Token::Comma) => continue,
-            None => break,
+            Some(Token::Semicolon) => break,
+            None => return Ok((table_name, row_count, column_definitions, indexes_definitions)),
             _ => return Err(ParserError::CommaExpected("column_definitions")),
         }
     }
-    Ok((table_name, row_count, column_definitions))
+
+    loop {
+        let (i, index_name, last_token) = parse_index_definition(&mut token_iter)
+            .map_err(|parser_error| ParserError::InvalidSchemaDefinition(parser_error.to_string()))?;
+
+        indexes_definitions.push((i, index_name));
+
+        match last_token {
+            Some(Token::Comma) => continue,
+            Some(Token::Semicolon) => break,
+            None => break,
+            _ => return Err(ParserError::CommaExpected("index_definitions")),
+        }
+    }
+    Ok((table_name, row_count, column_definitions, indexes_definitions))
+}
+
+pub fn parse_index_definition<'a, I>(mut token: I) -> Result<(usize, String, Option<&'a Token>), ParserError<'a>>
+where
+    I: Iterator<Item = &'a Token>
+{
+    let column_number = parse_int(&mut token)?;
+    let name = parse_index_name(&mut token)?.to_string();
+
+    Ok((column_number, name, token.next()))
+}
+
+pub fn parse_int<'a, I>(mut token: I) -> Result<usize, ParserError<'a>>
+where
+    I: Iterator<Item = &'a Token>
+{
+    match token.next() {
+        Some(token_val) => {
+            let int_string = token_val.to_string();
+            let int = int_string.parse::<usize>().map_err(|_| ParserError::IntegerExpected(token_val))?;
+            Ok(int)
+        },
+        None => Err(ParserError::IntegerMissing),
+    }
 }
 
 pub fn parse_createdb(input: &str) -> Result<MetaCommand, ParserError> {
@@ -256,7 +296,6 @@ mod tests {
                 Token::From,  Token::Value(SqlValue::Identificator("table_name".into())),
            ];
 
-        println!("{:?}", parse_statement(input.iter()));
         assert!(parse_statement(input.iter()).is_ok());
     }
 
@@ -500,7 +539,8 @@ mod tests {
 
     #[test]
     fn parse_valid_schema() {
-        let (table_name, row_count, column_definitions) = parse_schema_line("users 0 id int not null default 1 check(id > 0), name string").unwrap();
+        let (table_name, row_count, column_definitions, indexes_definitions) =
+            parse_schema_line("users 0 id int not null default 1 check(id > 0), name string").unwrap();
         assert_eq!(table_name, "users");
         assert_eq!(row_count, 0);
         assert_eq!(column_definitions[0].name.to_string(), "id");
@@ -522,6 +562,23 @@ mod tests {
         assert_eq!(column_definitions[1].name.to_string(), "name");
         assert!(matches!(column_definitions[1].kind, ColumnType::String));
         assert_eq!(column_definitions[1].column_constraints.len(), 0);
+        assert_eq!(indexes_definitions.len(), 0);
+    }
+
+    #[test]
+    fn parse_another_valid_schema() {
+        let (table_name, row_count, column_definitions, indexes_definitions) =
+            parse_schema_line("users 2 id int, age int; 1 age_hash;").unwrap();
+        assert_eq!(table_name, "users");
+        assert_eq!(row_count, 2);
+        assert_eq!(column_definitions[0].name.to_string(), "id");
+        assert!(matches!(column_definitions[0].kind, ColumnType::Integer));
+        assert_eq!(column_definitions[0].column_constraints.len(), 0);
+        assert_eq!(column_definitions[1].name.to_string(), "age");
+        assert!(matches!(column_definitions[1].kind, ColumnType::Integer));
+        assert_eq!(column_definitions[1].column_constraints.len(), 0);
+        assert_eq!(indexes_definitions.len(), 1);
+        assert_eq!(indexes_definitions[0], (1, "age_hash".to_string()));
     }
 
     #[test]
