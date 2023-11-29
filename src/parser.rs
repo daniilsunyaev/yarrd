@@ -4,7 +4,7 @@ use crate::command::Command;
 use crate::meta_command::MetaCommand;
 use crate::meta_command_error::MetaCommandError;
 use crate::lexer;
-use crate::lexer::{Token, SqlValue};
+use crate::lexer::Token;
 use crate::command::ColumnDefinition;
 use crate::parser::error::ParserError;
 use create::parse_create_statement;

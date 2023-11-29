@@ -130,7 +130,7 @@ impl Database {
 
             let indexes: Vec<_> =
                 table.column_indexes().iter().enumerate()
-                .filter(|(i, index_option)| index_option.is_some())
+                .filter(|(_i, index_option)| index_option.is_some())
                 .map(|(i, index_option)| (i, index_option.as_ref().unwrap()))
                 .collect();
 
@@ -439,7 +439,6 @@ impl Database {
         }
     }
 
-    // TODO: move to table
     fn table_filepath(tables_dir: &Path, table_name: &str) -> PathBuf {
         let mut path = tables_dir.join(table_name);
         path.set_extension(TABLE_EXTENSION);

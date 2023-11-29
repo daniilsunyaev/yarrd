@@ -33,7 +33,7 @@ impl HashIndex {
 
         let base_buckets_count = HashBucket::new(&hash_index_file, 0)?.primary_buckets_count()? as usize;
 
-        if hash_index_file.metadata()?.len() < base_buckets_count as u64 * hash_bucket::BUCKET_SIZE_U64 {
+        if hash_index_file.metadata()?.len() < (base_buckets_count * hash_bucket::BUCKET_SIZE) as u64 {
             hash_index_file.set_len((base_buckets_count * hash_bucket::BUCKET_SIZE) as u64)?;
         }
 

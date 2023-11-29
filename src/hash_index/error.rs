@@ -7,7 +7,7 @@ use std::io;
 #[derive(Debug)]
 pub enum HashIndexError {
     IoError(io::Error),
-    FloatIndexError(SqlValue),
+    FloatIndexError(String),
     SerDeError(SerDeError),
     BucketIsFull,
     UnexpectedBucketNumber(u64),
@@ -31,7 +31,7 @@ impl fmt::Display for HashIndexError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::IoError(io_error) => write!(f, "io error: {}", io_error),
-            Self::FloatIndexError(value) => write!(f, "float value {} cannot be hashed, only ints and strings are allowed for indexing", value),
+            Self::FloatIndexError(column_name) => write!(f, "float column '{}' cannot be hashed, only ints and strings are allowed for indexing", column_name),
             Self::SerDeError(serde_error) => write!(f, "{}", serde_error),
             Self::BucketIsFull => write!(f, "bucket is full, need to reindex"),
             Self::UnexpectedBucketNumber(number) => write!(f, "bucket {} does not exist, and cannot be a new overflow bucket", number),

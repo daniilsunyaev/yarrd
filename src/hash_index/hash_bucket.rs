@@ -71,7 +71,6 @@ impl HashBucket {
                     .map_err(SerDeError::CannotReadIntegerBytesError)?;
                 let potential_row_id = u64::from_le_bytes(u64_blob);
 
-
                 Ok(HashRow {
                     presence_flag: *presence_flag,
                     hashed_value: current_hashed_value,

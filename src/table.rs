@@ -10,6 +10,7 @@ use crate::query_result::QueryResult;
 use crate::pager::Pager;
 use crate::row_check::RowCheck;
 use crate::hash_index::HashIndex;
+use crate::hash_index::error::HashIndexError;
 use error::TableError;
 
 pub mod error;
@@ -362,6 +363,10 @@ impl Table {
 
     pub fn create_index(&mut self, column_name: &str, index_name: String, tables_dir: &Path) -> Result<(), TableError> {
         let column_number = self.column_number_result(column_name)?;
+        if matches!(self.column_types()[column_number], ColumnType::Float) {
+            return Err(HashIndexError::FloatIndexError(column_name.to_string()).into())
+        }
+
         if let Some(index) = &self.column_indexes[column_number] {
             return Err(TableError::IndexAlreadyExists {
                 table_name: self.name().to_string(),

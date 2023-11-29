@@ -226,6 +226,7 @@ Supported constraints: `NOT NULL`, `DEFAULT`.
 - think if we should rename 'validate_row_over_constraint' to smth like "check_not_null_constraints"
 - check if we can avoid generating byte layout for every row when using where
 - introduce NOT
+- dry parser 'parse_index_name', 'parse_column_name' etc, since those differ only be error messages
 - remove tables dir if it is empty after tables cleanup
 - maybe use peek and rewrite parser in more of decoupeled manner? Try to allow keyword names
 - add table column names -> column offset hashmap
