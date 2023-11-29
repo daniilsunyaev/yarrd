@@ -33,6 +33,13 @@ const DEFAULT_PATH: &str = ".";
 const CURRENT_FOLDER_PATH: &str = ".";
 const DEFAULT_TABLES_DIR_SUFFIX: &str = "_tables";
 
+pub struct TableSchemaDefinitionLine {
+    pub name: String,
+    pub row_count: usize,
+    pub column_definitions: Vec<ColumnDefinition>,
+    pub indexes_definitions: Vec<(usize, String)>,
+}
+
 pub fn parse_statement<'a, I>(mut token: I) -> Result<Command, ParserError<'a>>
 where
     I: Iterator<Item = &'a Token> + std::fmt::Debug,
@@ -87,7 +94,7 @@ pub fn parse_meta_command(input: &str) -> MetaCommand {
     }
 }
 
-pub fn parse_schema_line(table_definition_line: &str) -> Result<(String, usize, Vec<ColumnDefinition>, Vec<(usize, String)>), ParserError> {
+pub fn parse_schema_line(table_definition_line: &str) -> Result<TableSchemaDefinitionLine, ParserError> {
     let tokens = lexer::to_tokens(table_definition_line).map_err(ParserError::LexerError)?;
     let mut token_iter = tokens.iter();
     let table_name = token_iter.next().ok_or(ParserError::TableNameMissing)?.to_string();
@@ -106,7 +113,7 @@ pub fn parse_schema_line(table_definition_line: &str) -> Result<(String, usize, 
         match last_token {
             Some(Token::Comma) => continue,
             Some(Token::Semicolon) => break,
-            None => return Ok((table_name, row_count, column_definitions, indexes_definitions)),
+            None => return Ok(TableSchemaDefinitionLine { name: table_name, row_count, column_definitions, indexes_definitions }),
             _ => return Err(ParserError::CommaExpected("column_definitions")),
         }
     }
@@ -124,7 +131,7 @@ pub fn parse_schema_line(table_definition_line: &str) -> Result<(String, usize, 
             _ => return Err(ParserError::CommaExpected("index_definitions")),
         }
     }
-    Ok((table_name, row_count, column_definitions, indexes_definitions))
+    Ok(TableSchemaDefinitionLine { name: table_name, row_count, column_definitions, indexes_definitions })
 }
 
 pub fn parse_index_definition<'a, I>(mut token: I) -> Result<(usize, String, Option<&'a Token>), ParserError<'a>>
@@ -539,7 +546,7 @@ mod tests {
 
     #[test]
     fn parse_valid_schema() {
-        let (table_name, row_count, column_definitions, indexes_definitions) =
+        let TableSchemaDefinitionLine { name: table_name, row_count, column_definitions, indexes_definitions } =
             parse_schema_line("users 0 id int not null default 1 check(id > 0), name string").unwrap();
         assert_eq!(table_name, "users");
         assert_eq!(row_count, 0);
@@ -567,7 +574,7 @@ mod tests {
 
     #[test]
     fn parse_another_valid_schema() {
-        let (table_name, row_count, column_definitions, indexes_definitions) =
+        let TableSchemaDefinitionLine { name: table_name, row_count, column_definitions, indexes_definitions } =
             parse_schema_line("users 2 id int, age int; 1 age_hash;").unwrap();
         assert_eq!(table_name, "users");
         assert_eq!(row_count, 2);

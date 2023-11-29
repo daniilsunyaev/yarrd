@@ -74,7 +74,7 @@ impl fmt::Display for TableError {
                 write!(f,
                     "unexpected error while building binary condition value from table '{}' and table column '{}'",
                     table_name, column_string),
-            Self::HashIndexError(index_error) => write!(f, "{}", index_error.to_string()),
+            Self::HashIndexError(index_error) => write!(f, "{}", index_error),
         }
     }
 }

@@ -138,7 +138,7 @@ impl fmt::Display for SqlValue {
 impl Hash for SqlValue {
     fn hash<H: Hasher>(&self, state: &mut H) {
         match self {
-            Self::Float(_) => return,
+            Self::Float(_) => (),
             Self::String(string) => string.hash(state),
             Self::Integer(int) => int.hash(state),
             Self::Identificator(string) => string.hash(state),

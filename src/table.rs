@@ -99,11 +99,11 @@ impl Table {
         let mut column_types = vec![];
         let mut column_constraints = vec![vec![]; column_definitions.len()];
         let mut defaults = vec![SqlValue::Null; column_definitions.len()];
-        let mut column_indexes = vec![];
-        column_indexes.reserve(column_definitions.len());
+        let mut column_indexes = Vec::with_capacity(column_definitions.len());
         for _ in 0..column_definitions.len() {
             column_indexes.push(None);
         } // we have to do this explicitly to avoid implementing Clone trait on hash index
+
         for (column_number, index_name) in indexes_definitions {
             column_indexes[column_number] =
                 Some(HashIndex::new(tables_dir, name, index_name, column_number)?);
@@ -202,7 +202,7 @@ impl Table {
 
         let mut result = QueryResult { column_names: result_column_names, column_types: result_column_types.clone(), rows: vec![] };
 
-        for scan_result in Self::matching_rows(&mut self.pager, &mut self.column_indexes, &self.headers, where_clause)? {
+        for scan_result in Self::matching_rows(&mut self.pager, &self.column_indexes, &self.headers, where_clause)? {
             let row = scan_result?.row;
             let result_row = result.spawn_row();
 
@@ -278,8 +278,7 @@ impl Table {
                         .map_err(TableError::CannotUpdateRow)
                 }
             })
-            .skip_while(|updation_result: &Result<u64, TableError>| updation_result.is_ok())
-            .next();
+            .find(|updation_result: &Result<u64, TableError>| updation_result.is_err());
 
         match updation_error {
             None => Ok(()),
@@ -457,19 +456,6 @@ impl Table {
     }
 
     fn reindex_columns(&mut self, column_numbers: Vec<usize>) -> Result<(), TableError> {
-        //let mut enumerated_column_indexes: Vec<_> = column_numbers
-        //    .into_iter()
-        //    .map(|column_number| (column_number, self.column_indexes[column_number].as_mut()))
-        //    .filter(|(_i, column_index)| column_index.is_some())
-        //    .map(|(i, column_index_option)| (i, column_index_option.unwrap()))
-        //    .collect();
-
-        //enumerated_column_indexes
-        //    .iter_mut()
-        //    .map(|(_i, column_index)| Ok(column_index.clear().map_err(TableError::HashIndexError)?))
-        //    .collect::<Result<(),TableError>>()?;
-        //    //.map(|(i, column_index)| (i, column_index.clear().map_err(TableError::HashIndexError)?))
-        //    //.collect::<Result<Vec<(usize, &mut HashIndex)>, TableError>>()?;
         let mut indexed_column_numbers = vec![];
 
         for column_number in column_numbers {
@@ -480,7 +466,7 @@ impl Table {
         }
 
         Self::seq_scan(&mut self.pager)
-            .map(|scan_result| {
+            .try_for_each(|scan_result| {
                 let scan_product = scan_result?;
                 for column_number in &indexed_column_numbers {
                     let column_index = self.column_indexes[*column_number].as_mut().unwrap();
@@ -494,23 +480,10 @@ impl Table {
                 }
 
                 Ok(())
-                //enumerated_column_indexes
-                //    .iter_mut()
-                //    .map(|(column_number, column_index)| {
-                //        let value = scan_product
-                //            .row
-                //            .get_cell_sql_value(&self.headers.column_types, *column_number)
-                //            .map_err(TableError::CannotGetCell)?;
-
-                //        column_index.insert_row(&value, scan_product.row_id, self.row_count)
-                //            .map_err(TableError::HashIndexError)
-                //    })
-                //.collect::<Result<(), TableError>>()
             })
-            .collect::<Result<(), TableError>>()
     }
 
-    fn matching_rows<'a>(pager: &'a mut Pager, column_indexes: &'a Vec<Option<HashIndex>>,
+    fn matching_rows<'a>(pager: &'a mut Pager, column_indexes: &'a [Option<HashIndex>],
                          table_headers: &'a TableHeaders, where_clause: Option<BinaryCondition>)
         -> Result<impl Iterator<Item = Result<ScanProduct, TableError>> + 'a, TableError> {
 
@@ -540,7 +513,7 @@ impl Table {
         Ok(base_query_iter.filter_map(filter_closure))
     }
 
-    fn plan_query<'a, 'b>(pager: &'a mut Pager, column_indexes: &'a Vec<Option<HashIndex>>, where_filter: &'b RowCheck)
+    fn plan_query<'a, 'b>(pager: &'a mut Pager, column_indexes: &'a [Option<HashIndex>], where_filter: &'b RowCheck)
         -> Box<dyn Iterator<Item = Result<ScanProduct, TableError>> + 'a> {
 
         if let Some((column_number, value)) = where_filter.is_column_value_eq_static_check() {
@@ -562,7 +535,7 @@ impl Table {
             .map(|(row_number, get_row_result)| {
                 match get_row_result {
                     Err(error) => Err(TableError::CannotGetRow(error)),
-                    Ok(Some(row)) => Ok(ScanProduct { row_id: row_number, row: row }),
+                    Ok(Some(row)) => Ok(ScanProduct { row_id: row_number, row }),
                     Ok(None) => panic!("unexpected error: scan result cannot be none, this should be filtered out"),
                 }
             })
@@ -582,7 +555,7 @@ impl Table {
                     // TODO: we probably can reindex to recover from this error
                     Ok(ScanProduct {
                         row_id: row_number,
-                        row: row,
+                        row,
                     })
                 })
             )
