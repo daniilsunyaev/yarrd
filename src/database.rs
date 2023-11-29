@@ -95,13 +95,13 @@ impl Database {
     }
 
     pub fn parse_schema_line(tables_dir: &Path, table_definition_line: &str) -> Result<Table, MetaCommandError> {
-        let (table_name, row_count, column_definitions, indexes_definitions) =
+        let parser::TableSchemaDefinitionLine { name, row_count, column_definitions, indexes_definitions } =
             parser::parse_schema_line(table_definition_line)
             .map_err(|parser_error| MetaCommandError::ParseError(parser_error.to_string()))?;
 
-        let table_filepath = Self::table_filepath(tables_dir, &table_name);
+        let table_filepath = Self::table_filepath(tables_dir, &name);
 
-        Ok(Table::new(table_filepath, &table_name, row_count, column_definitions, indexes_definitions)?)
+        Ok(Table::new(table_filepath, &name, row_count, column_definitions, indexes_definitions)?)
     }
 
     // TODO: return result instead of unwrapping and handle err (probably via logging)

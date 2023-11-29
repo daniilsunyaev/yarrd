@@ -3,6 +3,7 @@ use crate::serialize::SerDeError;
 
 use std::fs::File;
 use std::io::{self, Seek, SeekFrom, Write, Read};
+use std::cmp::Ordering;
 
 pub const ROW_SIZE: usize = 1 + 8 + 8; // is deleted flag + hashed value + disk row number
 pub const BUCKET_SIZE: usize = 512;
@@ -34,11 +35,11 @@ impl HashBucket {
         let file_len = hash_index_file.metadata()?.len();
         let bucket_starts_at = BUCKET_SIZE as u64 * bucket_number;
 
-        if bucket_starts_at == file_len {
-            hash_index_file.set_len(file_len + BUCKET_SIZE as u64)?;
-        } else if bucket_starts_at > file_len {
-            return Err(HashIndexError::UnexpectedBucketNumber(bucket_number))
-        };
+        match bucket_starts_at.cmp(&file_len) {
+            Ordering::Greater => return Err(HashIndexError::UnexpectedBucketNumber(bucket_number)),
+            Ordering::Equal => hash_index_file.set_len(file_len + BUCKET_SIZE as u64)?,
+            Ordering::Less => { },
+        }
 
         if file_len == 0 {
             hash_index_file.seek(SeekFrom::Start(TOTAL_BUCKETS_ADDRESS as u64))?;
@@ -121,8 +122,8 @@ impl HashBucket {
                     self.bytes[row_starts_at] = 1;
                     let hashed_value_blob = hashed_value.to_le_bytes();
                     let row_id_blob = row_id.to_le_bytes();
-                    (&mut self.bytes[(row_starts_at + 1)..]).write(&hashed_value_blob)?;
-                    (&mut self.bytes[(row_starts_at + 9)..]).write(&row_id_blob)?;
+                    (&mut self.bytes[(row_starts_at + 1)..]).write_all(&hashed_value_blob)?;
+                    (&mut self.bytes[(row_starts_at + 9)..]).write_all(&row_id_blob)?;
                     self.modified = true;
 
                     return Ok(())
@@ -156,7 +157,7 @@ impl HashBucket {
 
     pub fn set_overflow_bucket_pointer(&mut self, overflow_bucket_number: u64) -> Result<(), HashIndexError> {
         let number_blob = overflow_bucket_number.to_le_bytes();
-        (&mut self.bytes[OVERFLOW_BUCKET_ADDRESS..]).write(&number_blob)?;
+        (&mut self.bytes[OVERFLOW_BUCKET_ADDRESS..]).write_all(&number_blob)?;
         self.modified = true;
         Ok(())
     }

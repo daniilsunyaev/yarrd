@@ -43,7 +43,7 @@ impl Row {
         Row { bytes }
     }
 
-    pub fn from_sql_values(values: &Vec<SqlValue>, column_types: &[ColumnType]) -> Result<Row, SerDeError> {
+    pub fn from_sql_values(values: &[SqlValue], column_types: &[ColumnType]) -> Result<Row, SerDeError> {
         let layout = Self::generate_byte_layout(column_types);
         let mut row = Self::from_layout(&layout);
 

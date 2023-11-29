@@ -53,8 +53,7 @@ impl HashIndex {
         let hashed_value = Self::hash_sql_value(column_value);
 
         Self::matching_buckets(&self.hash_index_file, self.base_buckets_count as u64, hashed_value)
-            .map(move |bucket| bucket.find_database_rows(hashed_value))
-            .flatten()
+            .flat_map(move |bucket| bucket.find_database_rows(hashed_value))
     }
 
     pub fn insert_row(&mut self, column_value: &SqlValue, row_id: u64, total_row_count: usize) -> Result<(), HashIndexError> {
@@ -65,9 +64,9 @@ impl HashIndex {
 
         if self
             .find_row_ids(column_value)
-            .find(|found_row_ids_result| {
+            .any(|found_row_ids_result| {
                 found_row_ids_result.is_ok() && found_row_ids_result.as_ref().unwrap() == &row_id
-            }).is_some() {
+            }) {
                 Err(HashIndexError::RowAlreadyExists(column_value.clone(), row_id))
             } else {
                 Self::insert_row_to_file(&self.hash_index_file, hashed_value, row_id, self.base_buckets_count)
@@ -99,8 +98,7 @@ impl HashIndex {
                     Err(other_error)  => Err(other_error), // serialization error, can't insert
                 }
             })
-            .skip_while(|insertion_result| insertion_result.is_ok() && insertion_result.as_ref().unwrap() == &false)
-            .next();
+            .find(|insertion_result| insertion_result.is_err() || insertion_result.as_ref().unwrap() == &true);
 
         match bucket_with_new_row {
             Some(Ok(_)) => Ok(()),
@@ -119,8 +117,7 @@ impl HashIndex {
         let last_deleted_row =
             Self::matching_buckets(&self.hash_index_file, self.base_buckets_count as u64, hashed_old_value)
             .map(|mut bucket| bucket.delete_row(row_id))
-            .skip_while(|deletion_result| deletion_result.is_ok() && deletion_result.as_ref().unwrap().is_none())
-            .next();
+            .find(|deletion_result| deletion_result.is_err() || deletion_result.as_ref().unwrap().is_some());
 
         match last_deleted_row {
             Some(Ok(_)) => Ok(row_id),
@@ -171,8 +168,7 @@ impl HashIndex {
 
     fn each_row(&self) -> impl Iterator<Item = Result<HashRow, HashIndexError>> + '_ {
         self.each_bucket()
-            .map(|bucket| bucket.unwrap().all_index_rows())
-            .flatten()
+            .flat_map(|bucket| bucket.unwrap().all_index_rows())
     }
 
     fn each_bucket(&self) -> impl Iterator<Item = Result<HashBucket, HashIndexError>> + '_ {
