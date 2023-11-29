@@ -40,10 +40,6 @@ impl HashBucket {
             Ordering::Equal => hash_index_file.set_len(file_len + BUCKET_SIZE as u64)?,
             Ordering::Less => { },
         }
-        //if bucket_starts_at == file_len {
-        //
-        //} else if bucket_starts_at > file_len {
-        //};
 
         if file_len == 0 {
             hash_index_file.seek(SeekFrom::Start(TOTAL_BUCKETS_ADDRESS as u64))?;
