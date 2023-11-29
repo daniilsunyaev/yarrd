@@ -215,8 +215,9 @@ Supported constraints: `NOT NULL`, `DEFAULT`.
   - ✓ update hashtable on delete
   - ✓ update hashtable on update
   - ✓ update hashtable on vacuum
-  - allow to set index on create table
-  - allow to set or delete index on alter table
+  - ✓ allow to create index on table, save index in schema
+  - allow to drop index on table
+  - adjust index on alter table
   - implement REINDEX
 - do not allow two columns with the same names in a table
 - implement unique constraint
