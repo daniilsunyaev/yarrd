@@ -4,7 +4,7 @@ use crate::hash_index::hash_bucket::{HashBucket, HashRow};
 use crate::serialize::SerDeError;
 
 use std::path::{PathBuf, Path};
-use std::fs::{OpenOptions, File};
+use std::fs::{self, OpenOptions, File};
 use std::io::{Seek, SeekFrom, Write, Read};
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
@@ -15,6 +15,7 @@ mod hash_bucket;
 #[derive(Debug)]
 pub struct HashIndex {
     pub name: String,
+    hash_index_filepath: PathBuf,
     hash_index_file: File,
     swap_hash_index_filepath: PathBuf, // this is used to rebuild index and swap it with original
     base_buckets_count: usize,
@@ -22,14 +23,14 @@ pub struct HashIndex {
 
 impl HashIndex {
     pub fn new(tables_dir: &Path, table_name: &str, name: String, column_number: usize) -> Result<HashIndex, HashIndexError> {
-        let filepath = Self::build_hash_index_filepath(tables_dir, table_name, column_number);
+        let hash_index_filepath = Self::build_hash_index_filepath(tables_dir, table_name, column_number);
         let swap_filepath = Self::build_swap_hash_index_filepath(tables_dir, table_name, column_number);
 
         let hash_index_file = OpenOptions::new()
             .read(true)
             .write(true)
             .create(true)
-            .open(filepath)?;
+            .open(hash_index_filepath.as_path())?;
 
         let base_buckets_count = HashBucket::new(&hash_index_file, 0)?.primary_buckets_count()? as usize;
 
@@ -39,6 +40,7 @@ impl HashIndex {
 
         Ok(Self {
             hash_index_file,
+            hash_index_filepath,
             base_buckets_count,
             name,
             swap_hash_index_filepath: swap_filepath,
@@ -85,6 +87,12 @@ impl HashIndex {
         let hashed_value = Self::hash_sql_value(column_value);
 
         self.delete_row_from_file(hashed_value, row_id)?;
+        Ok(())
+    }
+
+    pub fn destroy(self) -> Result<(), HashIndexError> {
+        fs::remove_file(self.swap_hash_index_filepath)?;
+        fs::remove_file(self.hash_index_filepath)?;
         Ok(())
     }
 

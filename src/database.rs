@@ -201,8 +201,8 @@ impl Database {
 
         match self.tables.remove(table_name_string.as_str()) {
             None => Err(ExecutionError::TableNotExist(table_name_string)),
-            Some(_) => {
-                fs::remove_file(Self::table_filepath(self.tables_dir.as_path(), table_name_string.as_str()))?;
+            Some(table) => {
+                table.destroy()?;
                 self.flush_schema();
                 Ok(None)
             },

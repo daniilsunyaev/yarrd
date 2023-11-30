@@ -1,6 +1,7 @@
 use std::fmt;
 use std::path::{Path, PathBuf};
 use std::iter::zip;
+use std::fs;
 
 use crate::command::{ColumnDefinition, FieldAssignment, SelectColumnName};
 use crate::binary_condition::BinaryCondition;
@@ -82,6 +83,7 @@ pub struct Table {
     pub row_count: usize, // this should go to metadata if we'll introduce more stats
     headers: TableHeaders,
     pager: Pager,
+    table_filepath: PathBuf,
     // eventually index type will be boxed, bus as it looks like I won't have time to implement
     // B-Tree, inverted, or any other type of index soon, I'm leaving straight index class inside
     // Option
@@ -142,7 +144,7 @@ impl Table {
             defaults,
         };
 
-        let mut table = Self { pager, headers, column_indexes, row_count };
+        let mut table = Self { pager, table_filepath, headers, column_indexes, row_count };
         table.compile_checks()?;
 
         Ok(table)
@@ -379,11 +381,37 @@ impl Table {
         self.reindex_column(column_number)
     }
 
+    pub fn destroy(mut self) -> Result<(), TableError> {
+        for i in 0..self.column_types().len() {
+            self.drop_index(i)?;
+        }
+        fs::remove_file(self.table_filepath).map_err(TableError::IoError)?;
+        Ok(())
+    }
+
+    pub fn drop_index_by_name(&mut self, index_name: String) -> Result<(), TableError> {
+        let column_number = self.column_indexes.iter()
+            .position(|index_option| index_option.is_some() && index_option.as_ref().unwrap().name == index_name)
+            .ok_or(TableError::HashIndexMissing { table_name: self.name().to_string(), index_name })?;
+
+        self.drop_index(column_number)
+    }
+
+    pub fn drop_index(&mut self, column_number: usize) -> Result<(), TableError> {
+        let mut hash_index: Option<HashIndex> = None;
+        std::mem::swap(&mut self.column_indexes[column_number], &mut hash_index);
+
+        match hash_index {
+            Some(index) => index.destroy().map_err(TableError::HashIndexError),
+            None => Ok(()),
+        }
+    }
+
     fn update_indexes_on_insert(&mut self, input_column_numbers: &[usize], result_values: &Vec<SqlValue>, row_id: u64) -> Result<(), TableError> {
         for (column_number, value) in zip(input_column_numbers, result_values) {
             match &mut self.column_indexes[*column_number] {
                 Some(hash_index) => hash_index.insert_row(value, row_id, self.row_count)?,
-                None => {},
+                None => (),
             }
         }
 
@@ -433,25 +461,10 @@ impl Table {
     }
 
     fn reindex(&mut self) -> Result<(), TableError> {
-        //let mut enumerated_column_indexes: Vec<(usize, &mut HashIndex)> = self.column_indexes
-        //    .iter_mut()
-        //    .enumerate()
-        //    .filter(|(_i, column_index_option)| column_index_option.is_some())
-        //    .map(|(i, column_index_option)| (i, column_index_option.as_mut().unwrap()))
-        //    .collect();
-
         self.reindex_columns((0..self.column_indexes.len()).collect())
     }
 
     fn reindex_column(&mut self, column_number: usize) -> Result<(), TableError> {
-        //let table_name = self.name().to_string();
-        //let column_index = self.column_indexes[column_number]
-        //    .as_mut()
-        //    .ok_or(TableError::ColumnNotExist {
-        //        table_name,
-        //        column_name: self.headers.column_names[column_number].clone(),
-        //    })?;
-
         self.reindex_columns(vec![column_number])
     }
 
