@@ -28,6 +28,8 @@ pub enum ParserError<'a> {
     IntoMissing,
     CreateIndexInvalid(&'a Token),
     CreateIndexOnMissing,
+    DropIndexInvalid(&'a Token),
+    DropIndexOnMissing,
     TableNameInvalid(&'a Token),
     TableNameMissing,
     RowCountMissing,
@@ -107,8 +109,11 @@ impl<'a> fmt::Display for ParserError<'a> {
             Self::InsertInvalid(token) => format!("expected INSERT INTO, got INSERT {}", token),
             Self::IntoMissing => "expected INSERT INTO, got INSERT".to_string(),
             Self::CreateIndexInvalid(token) =>
-                format!("expected CREATE INDEX index_name ON column_name, got CREATE INDEX index_name {}", token),
-            Self::CreateIndexOnMissing => "expected CREATE INDEX index_name ON column_name, got CREATE INDEX".to_string(),
+                format!("expected CREATE INDEX index_name ON table_name column_name, got CREATE INDEX index_name {}", token),
+            Self::CreateIndexOnMissing => "expected CREATE INDEX index_name ON table_name column_name, got CREATE INDEX".to_string(),
+            Self::DropIndexInvalid(token) =>
+                format!("expected DROP INDEX index_name ON table_name, got DROP INDEX index_name {}", token),
+            Self::DropIndexOnMissing => "expected DROP INDEX index_name ON column_name, got DROP INDEX".to_string(),
             Self::TableNameInvalid(table_name) => format!("'{}' is not a valid table name", table_name),
             Self::TableNameMissing => "table name is not provided".to_string(),
             Self::RowCountMissing => "row count is not provided".to_string(),

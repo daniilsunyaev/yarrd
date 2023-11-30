@@ -165,6 +165,7 @@ impl Database {
                 self.drop_table_column_constraint(table_name, column_name, constraint),
             Command::DropTableColumn { table_name, column_name } => self.drop_table_column(table_name, column_name),
             Command::CreateIndex { table_name, index_name, column_name } => self.create_table_index(index_name, table_name, column_name),
+            Command::DropIndex { table_name, index_name } => self.drop_table_index(index_name, table_name),
             Command::VacuumTable { table_name } => self.vacuum_table(&table_name),
             Command::Void => Ok(None),
         }
@@ -201,8 +202,8 @@ impl Database {
 
         match self.tables.remove(table_name_string.as_str()) {
             None => Err(ExecutionError::TableNotExist(table_name_string)),
-            Some(_) => {
-                fs::remove_file(Self::table_filepath(self.tables_dir.as_path(), table_name_string.as_str()))?;
+            Some(table) => {
+                table.destroy()?;
                 self.flush_schema();
                 Ok(None)
             },
@@ -325,6 +326,13 @@ impl Database {
         let column_name_string = column_name.to_string();
         let index_name_string = index_name.to_string();
         table.create_index(&column_name_string, index_name_string, tables_dir.as_path())?;
+        Ok(None)
+    }
+
+    fn drop_table_index(&mut self, index_name: SqlValue, table_name: SqlValue) -> Result<Option<QueryResult>, ExecutionError> {
+        let table = self.get_table(&table_name)?;
+        let index_name_string = index_name.to_string();
+        table.drop_index_by_name(index_name_string)?;
         Ok(None)
     }
 

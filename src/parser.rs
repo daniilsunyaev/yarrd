@@ -433,6 +433,29 @@ mod tests {
     }
 
     #[test]
+    fn create_index() {
+        let input = vec![
+                Token::Create, Token::Index,
+                Token::Value(SqlValue::Identificator("index_name".into())),
+                Token::On, Token::Value(SqlValue::Identificator("table_name".into())),
+                Token::Value(SqlValue::Identificator("id".into())),
+           ];
+
+        assert!(parse_statement(input.iter()).is_ok());
+    }
+
+    #[test]
+    fn drop_index() {
+        let input = vec![
+                Token::Drop, Token::Index,
+                Token::Value(SqlValue::Identificator("index_name".into())),
+                Token::On, Token::Value(SqlValue::Identificator("table_name".into())),
+           ];
+
+        assert!(parse_statement(input.iter()).is_ok());
+    }
+
+    #[test]
     fn vacuum_table() {
         let input = vec![
                 Token::Vacuum,

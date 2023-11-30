@@ -1,5 +1,6 @@
 use std::fmt;
 use std::error::Error;
+use std::io;
 
 use crate::pager::PagerError;
 use crate::table::ColumnType;
@@ -32,6 +33,8 @@ pub enum TableError {
     ColumnConstraintViolation { table_name: String, constraint: Constraint, column_name: String, value: SqlValue },
     CheckViolation { table_name: String, row_check: RowCheck, row: Row },
     UnexpectedBinaryConditionError { table_name: String, column_string: String },
+    HashIndexMissing { table_name: String, index_name: String },
+    IoError(io::Error),
     HashIndexError(HashIndexError),
 }
 
@@ -74,6 +77,8 @@ impl fmt::Display for TableError {
                 write!(f,
                     "unexpected error while building binary condition value from table '{}' and table column '{}'",
                     table_name, column_string),
+            Self::IoError(io_error) => write!(f, "io error: {}", io_error),
+            Self::HashIndexMissing { table_name, index_name } => write!(f, "table '{}' does not have index with name '{}'", table_name, index_name),
             Self::HashIndexError(index_error) => write!(f, "{}", index_error),
         }
     }
