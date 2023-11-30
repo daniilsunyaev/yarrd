@@ -81,6 +81,10 @@ pub enum Command {
         table_name: SqlValue,
         column_name: SqlValue,
     },
+    DropIndex {
+        index_name: SqlValue,
+        table_name: SqlValue,
+    },
     VacuumTable {
         table_name: SqlValue,
     },
@@ -516,7 +520,7 @@ mod tests {
     }
 
     #[test]
-    fn create_table_with_index_multiple_insert_and_select() {
+    fn create_table_with_index_multiple_insert_and_select_and_drop() {
         let (db_file, mut database) = open_test_database();
         let create_table = Command::CreateTable {
             table_name: SqlValue::Identificator("users".to_string()),
@@ -564,6 +568,12 @@ mod tests {
         };
         let select_result = database.execute(select_from_table);
         assert!(matches!(select_result, Ok(Some(_))));
+
+        let drop_table = Command::DropTable {
+            table_name: SqlValue::Identificator("users".to_string()),
+        };
+
+        assert!(database.execute(drop_table).is_ok());
     }
 
     fn open_test_database() -> (TempFile, Database) {
