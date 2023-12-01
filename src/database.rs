@@ -244,21 +244,18 @@ impl Database {
     fn rename_table(&mut self, table_name: SqlValue, new_table_name: SqlValue) -> Result<Option<QueryResult>, ExecutionError> {
         let table_name_string = table_name.to_string();
         let new_table_name_string = new_table_name.to_string();
-        let table_filepath = Self::table_filepath(self.tables_dir.as_path(), table_name_string.as_str());
         let new_table_filepath = Self::table_filepath(self.tables_dir.as_path(), new_table_name_string.as_str());
 
         let mut table = match self.tables.remove(table_name_string.as_str()) {
             None => return Err(ExecutionError::TableNotExist(table_name_string)),
             Some(table) => table,
         };
-
-        match fs::rename(table_filepath, new_table_filepath) {
+        match table.rename(&new_table_name_string, new_table_filepath.as_path()) {
             Err(io_error) => {
                 self.tables.insert(table_name_string, table);
                 Err(io_error.into())
             },
             Ok(_) => {
-                table.set_name(&new_table_name_string);
                 self.tables.insert(new_table_name_string, table);
                 Ok(None)
             }

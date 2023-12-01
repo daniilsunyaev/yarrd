@@ -217,7 +217,7 @@ Supported constraints: `NOT NULL`, `DEFAULT`.
   - ✓ update hashtable on vacuum
   - ✓ allow to create index on table, save index in schema
   - ✓ allow to drop index on table and drop indexes on drop table
-  - adjust index on alter table
+  - adjust index on alter table (rename table, rename column, drop column, add column)
   - implement REINDEX
 - do not allow two columns with the same names in a table
 - implement unique constraint

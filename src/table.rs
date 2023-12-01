@@ -108,7 +108,7 @@ impl Table {
 
         for (column_number, index_name) in indexes_definitions {
             column_indexes[column_number] =
-                Some(HashIndex::new(tables_dir, name, index_name, column_number)?);
+                Some(HashIndex::new(tables_dir, name, index_name)?);
         }
 
         for (i, column_definition) in column_definitions.into_iter().enumerate() {
@@ -166,7 +166,7 @@ impl Table {
         &self.column_indexes
     }
 
-    pub fn set_name(&mut self, name: &str) {
+    fn set_name(&mut self, name: &str) {
         self.headers.name = name.to_string();
     }
 
@@ -320,6 +320,27 @@ impl Table {
         Ok(())
     }
 
+
+    pub fn rename(&mut self, new_name: &str, new_table_filepath: &Path) -> Result<(), TableError> {
+        let tables_dir = self.table_filepath.parent().unwrap();
+        match fs::rename(self.table_filepath.clone(), new_table_filepath) {
+            Err(io_error) => Err(TableError::IoError(io_error)),
+            Ok(_) => {
+                self.column_indexes.iter_mut()
+                    .try_for_each(|index_option: &mut Option<HashIndex>| {
+                        if let Some(index) = index_option.as_mut() {
+                            index.adjust_filepaths(new_name, tables_dir)?;
+                        }
+
+                        Ok::<(), TableError>(())
+                    })?;
+                self.set_name(new_name);
+                self.table_filepath = new_table_filepath.to_path_buf();
+                Ok(())
+            },
+        }
+    }
+
     pub fn rename_column(&mut self, column_name: String, new_column_name: String) -> Result<(), TableError> {
         let column_number = self.column_number_result(column_name.as_str())?;
 
@@ -376,7 +397,7 @@ impl Table {
             })
         }
 
-        let index = HashIndex::new(tables_dir, self.name(), index_name, column_number)?;
+        let index = HashIndex::new(tables_dir, self.name(), index_name)?;
         self.column_indexes[column_number] = Some(index);
         self.reindex_column(column_number)
     }
