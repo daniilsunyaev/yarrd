@@ -91,8 +91,12 @@ impl HashIndex {
     }
 
     pub fn destroy(self) -> Result<(), HashIndexError> {
-        fs::remove_file(self.swap_hash_index_filepath)?;
         fs::remove_file(self.hash_index_filepath)?;
+        match fs::remove_file(self.swap_hash_index_filepath) {
+            Ok(()) => (),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => (),
+            Err(e) => return Err(e.into()),
+        }
         Ok(())
     }
 
@@ -102,7 +106,12 @@ impl HashIndex {
 
         // TODO: this should be rollbackable via cascade file manager
         fs::rename(self.hash_index_filepath.as_path(), new_hash_index_filepath.as_path())?;
-        fs::remove_file(self.swap_hash_index_filepath.as_path())?;
+        match fs::remove_file(self.swap_hash_index_filepath.as_path()) {
+            Ok(()) => (),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => (),
+            Err(e) => return Err(e.into()),
+        }
+
         self.hash_index_filepath = new_hash_index_filepath;
         self.swap_hash_index_filepath = new_swap_filepath;
 

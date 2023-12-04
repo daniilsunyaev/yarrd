@@ -92,7 +92,7 @@ pub struct Table {
 
 impl Table {
     pub fn new(table_filepath: PathBuf, name: &str, row_count: usize,
-               column_definitions: Vec<ColumnDefinition>, indexes_definitions: Vec<(usize, String)>)
+               column_definitions: &Vec<ColumnDefinition>, indexes_definitions: Vec<(usize, String)>)
         -> Result<Table, TableError> {
 
         let tables_dir = table_filepath.parent().unwrap();
@@ -115,7 +115,7 @@ impl Table {
             column_names.push(column_definition.name.to_string());
             column_types.push(column_definition.kind);
 
-            for constraint in column_definition.column_constraints {
+            for constraint in &column_definition.column_constraints {
                 match constraint {
                     Constraint::Default(value) => {
                         if defaults[i] != SqlValue::Null {
@@ -125,10 +125,10 @@ impl Table {
                                 constraint: Constraint::Default(defaults[i].clone())
                             })
                         } else {
-                          defaults[i] = value;
+                          defaults[i] = value.clone();
                         }
                     },
-                    _ => column_constraints[i].push(constraint),
+                    _ => column_constraints[i].push(constraint.clone()),
                 }
             }
         }
@@ -320,9 +320,9 @@ impl Table {
         Ok(())
     }
 
-
     pub fn rename(&mut self, new_name: &str, new_table_filepath: &Path) -> Result<(), TableError> {
         let tables_dir = self.table_filepath.parent().unwrap();
+
         match fs::rename(self.table_filepath.clone(), new_table_filepath) {
             Err(io_error) => Err(TableError::IoError(io_error)),
             Ok(_) => {
@@ -406,6 +406,7 @@ impl Table {
         for i in 0..self.column_types().len() {
             self.drop_index(i)?;
         }
+
         fs::remove_file(self.table_filepath).map_err(TableError::IoError)?;
         Ok(())
     }
@@ -426,6 +427,28 @@ impl Table {
             Some(index) => index.destroy().map_err(TableError::HashIndexError),
             None => Ok(()),
         }
+    }
+
+    pub fn clone_indexes_to(&self, new_table: &mut Table) -> Result<(), TableError> {
+        let tables_dir = self.table_filepath.parent().unwrap();
+        for i in 0..self.column_indexes.len() {
+            if self.column_indexes[i].is_none() { continue };
+
+            new_table.create_index(&self.column_names()[i], self.column_indexes[i].as_ref().unwrap().name.clone(), tables_dir)?;
+        }
+
+        Ok(())
+    }
+
+    pub fn clone_indexes_without_one_column_to(&self, new_table: &mut Table, skip_column_number: usize) -> Result<(), TableError> {
+        let tables_dir = self.table_filepath.parent().unwrap();
+        for i in 0..self.column_indexes.len() {
+            if i == skip_column_number || self.column_indexes[i].is_none() { continue };
+
+            new_table.create_index(&self.column_names()[i], self.column_indexes[i].as_ref().unwrap().name.clone(), tables_dir)?;
+        }
+
+        Ok(())
     }
 
     fn update_indexes_on_insert(&mut self, input_column_numbers: &[usize], result_values: &Vec<SqlValue>, row_id: u64) -> Result<(), TableError> {
