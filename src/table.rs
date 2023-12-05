@@ -111,7 +111,7 @@ impl Table {
                 Some(HashIndex::new(tables_dir, name, index_name)?);
         }
 
-        for (i, column_definition) in column_definitions.into_iter().enumerate() {
+        for (i, column_definition) in column_definitions.iter().enumerate() {
             column_names.push(column_definition.name.to_string());
             column_types.push(column_definition.kind);
 
