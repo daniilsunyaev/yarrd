@@ -176,28 +176,6 @@ impl Database {
         let table = self.build_table(&table_name_string, &columns)?;
         self.tables.insert(table_name_string, table);
         Ok(None)
-        //let table_filepath = Self::table_filepath(self.tables_dir.as_path(), table_name_string.as_str());
-
-        //if self.tables.contains_key(table_name_string.as_str()) {
-        //    return Err(ExecutionError::TableAlreadyExist(table_name_string));
-        //}
-
-        //File::create(table_filepath.as_path())?;
-        //match Table::new(table_filepath.clone(), table_name_string.as_str(), 0, columns, vec![]) {
-        //    Ok(table) => {
-        //        self.tables.insert(table_name_string, table);
-        //        Ok(None)
-        //    },
-        //    Err(create_table_error) => {
-        //        fs::remove_file(table_filepath.as_path())
-        //            .unwrap_or_else(|_| panic!(
-        //                        "failed to create table: {}, failed to remove table file '{}', try to remove it manually",
-        //                        create_table_error, table_filepath.to_str().unwrap()
-        //                    ));
-
-        //        Err(create_table_error.into())
-        //    }
-        //}
     }
 
     fn build_table(&self, table_name: &str, columns: &Vec<ColumnDefinition>) -> Result<Table, ExecutionError> {
@@ -220,11 +198,6 @@ impl Database {
             }
         }
     }
-
-    //fn save_empty_table_to_database(&mut self, table_name: &str) -> Result<(), ExecutionError> {
-    //    self.tables.insert(table_name.to_string(), table);
-    //    Ok(())
-    //}
 
     fn drop_table(&mut self, table_name: SqlValue) -> Result<Option<QueryResult>, ExecutionError> {
         let table_name_string = table_name.to_string();
@@ -331,8 +304,6 @@ impl Database {
         let table_column_types = table.column_types().to_vec();
         new_column_definitions.push(column_definition);
         let temp_new_table_name = Self::temporary_table_name(&table_name);
-        // TODO copy indexes
-        //self.create_table(temp_new_table_name.clone(), new_column_definitions)?;
         let mut new_table = self.build_table(&temp_new_table_name.to_string(), &new_column_definitions)?;
         table.clone_indexes_to(&mut new_table)?;
         self.tables.insert(temp_new_table_name.to_string(), new_table);

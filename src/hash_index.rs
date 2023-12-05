@@ -91,31 +91,32 @@ impl HashIndex {
     }
 
     pub fn destroy(self) -> Result<(), HashIndexError> {
+        self.drop_swap_file_if_present()?;
         fs::remove_file(self.hash_index_filepath)?;
-        match fs::remove_file(self.swap_hash_index_filepath) {
-            Ok(()) => (),
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => (),
-            Err(e) => return Err(e.into()),
-        }
         Ok(())
     }
 
     pub fn adjust_filepaths(&mut self, new_table_name: &str, tables_dir: &Path) -> Result<(), HashIndexError> {
+        self.drop_swap_file_if_present()?;
+
         let new_hash_index_filepath = Self::build_hash_index_filepath(tables_dir, new_table_name, &self.name);
         let new_swap_filepath = Self::build_swap_hash_index_filepath(tables_dir, new_table_name, &self.name);
 
         // TODO: this should be rollbackable via cascade file manager
         fs::rename(self.hash_index_filepath.as_path(), new_hash_index_filepath.as_path())?;
-        match fs::remove_file(self.swap_hash_index_filepath.as_path()) {
-            Ok(()) => (),
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => (),
-            Err(e) => return Err(e.into()),
-        }
 
         self.hash_index_filepath = new_hash_index_filepath;
         self.swap_hash_index_filepath = new_swap_filepath;
 
         Ok(())
+    }
+
+    fn drop_swap_file_if_present(&self) -> Result<(), HashIndexError> {
+        match fs::remove_file(self.swap_hash_index_filepath.as_path()) {
+            Ok(()) => Ok(()),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(e) => return Err(e.into()),
+        }
     }
 
     fn insert_row_to_file(file: &File, hashed_value: u64, row_id: u64, base_buckets_count: usize) -> Result<(), HashIndexError> {
