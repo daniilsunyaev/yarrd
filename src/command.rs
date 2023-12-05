@@ -483,7 +483,45 @@ mod tests {
             column_name: SqlValue::String("name".to_string()),
         };
         database.execute(drop_table_column).expect("drop table should be successful");
-        assert!(Some(1).ok_or(0).is_ok());
+    }
+
+    #[test]
+    fn create_table_with_index_and_add_column() {
+        let (_db_file, mut database) = open_test_database();
+        let create_table = Command::CreateTable {
+            table_name: SqlValue::Identificator("users".to_string()),
+            columns: vec![
+                ColumnDefinition {
+                    name: SqlValue::Identificator("id".to_string()),
+                    kind: ColumnType::Integer,
+                    column_constraints: vec![],
+                },
+                ColumnDefinition {
+                    name: SqlValue::Identificator("name".to_string()),
+                    kind: ColumnType::String,
+                    column_constraints: vec![],
+                },
+            ],
+        };
+
+        database.execute(create_table).expect("database create table statement should be successful");
+
+        let create_index = Command::CreateIndex {
+            table_name: SqlValue::Identificator("users".to_string()),
+            index_name: SqlValue::Identificator("users-id".to_string()),
+            column_name: SqlValue::Identificator("name".to_string()),
+        };
+        database.execute(create_index).expect("database create index statement should be successful");
+
+        let add_table_column = Command::AddTableColumn {
+            table_name: SqlValue::Identificator("users".to_string()),
+            column_definition: ColumnDefinition {
+                name: SqlValue::String("age".to_string()),
+                kind: ColumnType::Integer,
+                column_constraints: vec![],
+            },
+        };
+        database.execute(add_table_column).expect("add table should be successful");
     }
 
     #[test]

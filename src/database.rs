@@ -332,7 +332,10 @@ impl Database {
         new_column_definitions.push(column_definition);
         let temp_new_table_name = Self::temporary_table_name(&table_name);
         // TODO copy indexes
-        self.create_table(temp_new_table_name.clone(), new_column_definitions)?;
+        //self.create_table(temp_new_table_name.clone(), new_column_definitions)?;
+        let mut new_table = self.build_table(&temp_new_table_name.to_string(), &new_column_definitions)?;
+        table.clone_indexes_to(&mut new_table)?;
+        self.tables.insert(temp_new_table_name.to_string(), new_table);
 
         match self.move_extended_records_to_new_table_and_swap_tables(&table_name, &temp_new_table_name, &table_column_types) {
             Ok(result) => Ok(result),
@@ -422,7 +425,6 @@ impl Database {
         Ok(None)
     }
 
-    // TODO: add test that drop table column with indexes works correctly
     fn drop_table_column(&mut self, table_name: SqlValue, column_name: SqlValue) -> Result<Option<QueryResult>, ExecutionError> {
         let table = self.get_table_by_sql_value(&table_name)?;
         let dropped_column_number = table.column_number_result(column_name.to_string().as_str())?;
@@ -433,7 +435,6 @@ impl Database {
         let mut new_table = self.build_table(&temp_new_table_name.to_string(), &new_column_definitions)?;
         table.clone_indexes_without_one_column_to(&mut new_table, dropped_column_number)?;
         self.tables.insert(temp_new_table_name.to_string(), new_table);
-        //self.clone_table_indexes_to_new_table(&table_name, &mut new_table)?;
 
         match self.move_shrinked_records_to_new_table_and_swap_tables(&table_name, &temp_new_table_name, &table_column_types, dropped_column_number) {
             Ok(result) => Ok(result),
@@ -447,15 +448,6 @@ impl Database {
             }
         }
     }
-
-    //fn clone_table_indexes_to_new_table(&mut self, old_table_name: &SqlValue, new_table: &mut Table) -> Result<(), ExecutionError> {
-    //    let tables_dir = self.tables_dir.clone();
-    //    // TODO: use old table reference instead
-    //    let old_table = self.get_table_by_sql_value(old_table_name)?;
-    //    //let mut new_table = self.get_table_by_sql_value(new_table_name)?;
-
-    //    Ok(())
-    //}
 
     fn move_shrinked_records_to_new_table_and_swap_tables(&mut self, target_table_name: &SqlValue, temp_new_table_name: &SqlValue,
                                                  table_column_types: &[ColumnType], drop_index: usize) -> Result<Option<QueryResult>, ExecutionError> {
