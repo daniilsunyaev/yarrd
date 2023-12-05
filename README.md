@@ -217,7 +217,7 @@ Supported constraints: `NOT NULL`, `DEFAULT`.
   - ✓ update hashtable on vacuum
   - ✓ allow to create index on table, save index in schema
   - ✓ allow to drop index on table and drop indexes on drop table
-  - adjust index on alter table
+  - ✓ adjust index on alter table (rename table, rename column, drop column, add column)
   - implement REINDEX
 - do not allow two columns with the same names in a table
 - implement unique constraint
@@ -225,6 +225,7 @@ Supported constraints: `NOT NULL`, `DEFAULT`.
 - implement primary constraint and use row_id if not set
 - think if we should rename 'validate_row_over_constraint' to smth like "check_not_null_constraints"
 - check if we can avoid generating byte layout for every row when using where
+- think if there is a way to dry command full tests
 - introduce NOT
 - dry parser 'parse_index_name', 'parse_column_name' etc, since those differ only be error messages
 - remove tables dir if it is empty after tables cleanup

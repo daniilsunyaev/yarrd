@@ -101,7 +101,7 @@ impl Database {
 
         let table_filepath = Self::table_filepath(tables_dir, &name);
 
-        Ok(Table::new(table_filepath, &name, row_count, column_definitions, indexes_definitions)?)
+        Ok(Table::new(table_filepath, &name, row_count, &column_definitions, indexes_definitions)?)
     }
 
     // TODO: return result instead of unwrapping and handle err (probably via logging)
@@ -173,18 +173,20 @@ impl Database {
 
     fn create_table(&mut self, table_name: SqlValue, columns: Vec<ColumnDefinition>) -> Result<Option<QueryResult>, ExecutionError> {
         let table_name_string = table_name.to_string();
-        let table_filepath = Self::table_filepath(self.tables_dir.as_path(), table_name_string.as_str());
+        let table = self.build_table(&table_name_string, &columns)?;
+        self.tables.insert(table_name_string, table);
+        Ok(None)
+    }
 
-        if self.tables.contains_key(table_name_string.as_str()) {
-            return Err(ExecutionError::TableAlreadyExist(table_name_string));
+    fn build_table(&self, table_name: &str, columns: &Vec<ColumnDefinition>) -> Result<Table, ExecutionError> {
+        let table_filepath = Self::table_filepath(self.tables_dir.as_path(), table_name);
+
+        if self.tables.contains_key(table_name) {
+            return Err(ExecutionError::TableAlreadyExist(table_name.to_string()));
         }
-
         File::create(table_filepath.as_path())?;
-        match Table::new(table_filepath.clone(), table_name_string.as_str(), 0, columns, vec![]) {
-            Ok(table) => {
-                self.tables.insert(table_name_string, table);
-                Ok(None)
-            },
+        match Table::new(table_filepath.clone(), table_name, 0, columns, vec![]) {
+            Ok(table) => Ok(table),
             Err(create_table_error) => {
                 fs::remove_file(table_filepath.as_path())
                     .unwrap_or_else(|_| panic!(
@@ -211,7 +213,7 @@ impl Database {
     }
 
     fn select_rows(&mut self, table_name: SqlValue, column_names: Vec<SelectColumnName>, where_clause: Option<BinaryCondition>) -> Result<Option<QueryResult>, ExecutionError> {
-        let table = self.get_table(&table_name)?;
+        let table = self.get_mut_table_by_sql_value(&table_name)?;
 
         Ok(Some(table.select(column_names, where_clause)?))
     }
@@ -223,19 +225,19 @@ impl Database {
                      .map(|sql_name| sql_name.to_string()).collect()
                 );
 
-        let table = self.get_table(&table_name)?;
+        let table = self.get_mut_table_by_sql_value(&table_name)?;
         table.insert(column_names, values)?;
         Ok(None)
     }
 
     fn update_rows(&mut self, table_name: SqlValue, field_assignments: Vec<FieldAssignment>, where_clause: Option<BinaryCondition>) -> Result<Option<QueryResult>, ExecutionError> {
-        let table = self.get_table(&table_name)?;
+        let table = self.get_mut_table_by_sql_value(&table_name)?;
         table.update(field_assignments, where_clause)?;
         Ok(None)
     }
 
     fn delete_rows(&mut self, table_name: SqlValue, where_clause: Option<BinaryCondition>) -> Result<Option<QueryResult>, ExecutionError> {
-        let table = self.get_table(&table_name)?;
+        let table = self.get_mut_table_by_sql_value(&table_name)?;
 
         table.delete(where_clause)?;
         Ok(None)
@@ -244,21 +246,18 @@ impl Database {
     fn rename_table(&mut self, table_name: SqlValue, new_table_name: SqlValue) -> Result<Option<QueryResult>, ExecutionError> {
         let table_name_string = table_name.to_string();
         let new_table_name_string = new_table_name.to_string();
-        let table_filepath = Self::table_filepath(self.tables_dir.as_path(), table_name_string.as_str());
         let new_table_filepath = Self::table_filepath(self.tables_dir.as_path(), new_table_name_string.as_str());
 
         let mut table = match self.tables.remove(table_name_string.as_str()) {
             None => return Err(ExecutionError::TableNotExist(table_name_string)),
             Some(table) => table,
         };
-
-        match fs::rename(table_filepath, new_table_filepath) {
+        match table.rename(&new_table_name_string, new_table_filepath.as_path()) {
             Err(io_error) => {
                 self.tables.insert(table_name_string, table);
                 Err(io_error.into())
             },
             Ok(_) => {
-                table.set_name(&new_table_name_string);
                 self.tables.insert(new_table_name_string, table);
                 Ok(None)
             }
@@ -269,7 +268,7 @@ impl Database {
         let column_name_string = column_name.to_string();
         let new_column_name_string = new_column_name.to_string();
 
-        let table = self.get_table(&table_name)?;
+        let table = self.get_mut_table_by_sql_value(&table_name)?;
         table.rename_column(column_name_string, new_column_name_string)?;
 
         // TODO: use result, and rename column back if flush is not possible
@@ -280,7 +279,7 @@ impl Database {
     fn add_table_column_constraint(&mut self, table_name: SqlValue, column_name: SqlValue, constraint: Constraint) -> Result<Option<QueryResult>, ExecutionError> {
         let column_name_string = column_name.to_string();
 
-        let table = self.get_table(&table_name)?;
+        let table = self.get_mut_table_by_sql_value(&table_name)?;
         table.add_column_constraint(column_name_string, constraint)?;
 
         // TODO: use result, and rename column back if flush is not possible
@@ -291,7 +290,7 @@ impl Database {
     fn drop_table_column_constraint(&mut self, table_name: SqlValue, column_name: SqlValue, constraint: Constraint) -> Result<Option<QueryResult>, ExecutionError> {
         let column_name_string = column_name.to_string();
 
-        let table = self.get_table(&table_name)?;
+        let table = self.get_mut_table_by_sql_value(&table_name)?;
         table.drop_column_constraint(column_name_string, constraint)?;
 
         // TODO: use result, and rename column back if flush is not possible
@@ -300,12 +299,14 @@ impl Database {
     }
 
     fn add_table_column(&mut self, table_name: SqlValue, column_definition: ColumnDefinition) -> Result<Option<QueryResult>, ExecutionError> {
-        let table = self.get_table(&table_name)?;
+        let table = self.get_table_by_sql_value(&table_name)?;
         let mut new_column_definitions = table.column_definitions();
         let table_column_types = table.column_types().to_vec();
         new_column_definitions.push(column_definition);
         let temp_new_table_name = Self::temporary_table_name(&table_name);
-        self.create_table(temp_new_table_name.clone(), new_column_definitions)?;
+        let mut new_table = self.build_table(&temp_new_table_name.to_string(), &new_column_definitions)?;
+        table.clone_indexes_to(&mut new_table)?;
+        self.tables.insert(temp_new_table_name.to_string(), new_table);
 
         match self.move_extended_records_to_new_table_and_swap_tables(&table_name, &temp_new_table_name, &table_column_types) {
             Ok(result) => Ok(result),
@@ -322,7 +323,7 @@ impl Database {
 
     fn create_table_index(&mut self, index_name: SqlValue, table_name: SqlValue, column_name: SqlValue) -> Result<Option<QueryResult>, ExecutionError> {
         let tables_dir = self.tables_dir.clone();
-        let table = self.get_table(&table_name)?;
+        let table = self.get_mut_table_by_sql_value(&table_name)?;
         let column_name_string = column_name.to_string();
         let index_name_string = index_name.to_string();
         table.create_index(&column_name_string, index_name_string, tables_dir.as_path())?;
@@ -330,7 +331,7 @@ impl Database {
     }
 
     fn drop_table_index(&mut self, index_name: SqlValue, table_name: SqlValue) -> Result<Option<QueryResult>, ExecutionError> {
-        let table = self.get_table(&table_name)?;
+        let table = self.get_mut_table_by_sql_value(&table_name)?;
         let index_name_string = index_name.to_string();
         table.drop_index_by_name(index_name_string)?;
         Ok(None)
@@ -339,7 +340,7 @@ impl Database {
     fn move_extended_records_to_new_table_and_swap_tables(&mut self, target_table_name: &SqlValue, temp_new_table_name: &SqlValue,
                                                  table_column_types: &[ColumnType]) -> Result<Option<QueryResult>, ExecutionError> {
         let all_rows_query_option = self.select_rows(target_table_name.clone(), vec![SelectColumnName::AllColumns], None)?;
-        let new_table = self.get_table(temp_new_table_name)?;
+        let new_table = self.get_mut_table_by_sql_value(temp_new_table_name)?;
 
         if let Some(all_rows_query) = all_rows_query_option {
             for row in all_rows_query.rows {
@@ -396,15 +397,17 @@ impl Database {
     }
 
     fn drop_table_column(&mut self, table_name: SqlValue, column_name: SqlValue) -> Result<Option<QueryResult>, ExecutionError> {
-        let table = self.get_table(&table_name)?;
-        let droped_column_index = table.column_number_result(column_name.to_string().as_str())?;
+        let table = self.get_table_by_sql_value(&table_name)?;
+        let dropped_column_number = table.column_number_result(column_name.to_string().as_str())?;
         let mut new_column_definitions = table.column_definitions();
         let table_column_types = table.column_types().to_vec();
-        new_column_definitions.remove(droped_column_index);
+        new_column_definitions.remove(dropped_column_number);
         let temp_new_table_name = Self::temporary_table_name(&table_name);
-        self.create_table(temp_new_table_name.clone(), new_column_definitions)?;
+        let mut new_table = self.build_table(&temp_new_table_name.to_string(), &new_column_definitions)?;
+        table.clone_indexes_without_one_column_to(&mut new_table, dropped_column_number)?;
+        self.tables.insert(temp_new_table_name.to_string(), new_table);
 
-        match self.move_shrinked_records_to_new_table_and_swap_tables(&table_name, &temp_new_table_name, &table_column_types, droped_column_index) {
+        match self.move_shrinked_records_to_new_table_and_swap_tables(&table_name, &temp_new_table_name, &table_column_types, dropped_column_number) {
             Ok(result) => Ok(result),
             Err(move_error) => {
                 self.drop_table(temp_new_table_name.clone())
@@ -420,7 +423,7 @@ impl Database {
     fn move_shrinked_records_to_new_table_and_swap_tables(&mut self, target_table_name: &SqlValue, temp_new_table_name: &SqlValue,
                                                  table_column_types: &[ColumnType], drop_index: usize) -> Result<Option<QueryResult>, ExecutionError> {
         let all_rows_query_option = self.select_rows(target_table_name.clone(), vec![SelectColumnName::AllColumns], None)?;
-        let new_table = self.get_table(temp_new_table_name)?;
+        let new_table = self.get_mut_table_by_sql_value(temp_new_table_name)?;
 
         if let Some(all_rows_query) = all_rows_query_option {
             for row in all_rows_query.rows {
@@ -434,15 +437,31 @@ impl Database {
     }
 
     fn vacuum_table(&mut self, table_name: &SqlValue) -> Result<Option<QueryResult>, ExecutionError> {
-        let table = self.get_table(table_name)?;
+        let table = self.get_mut_table_by_sql_value(table_name)?;
         table.vacuum()?;
         Ok(None)
     }
 
-    fn get_table(&mut self, table_name: &SqlValue) -> Result<&mut Table, ExecutionError> {
+    fn get_table_by_sql_value(&self, table_name: &SqlValue) -> Result<&Table, ExecutionError> {
         let table_name_string = table_name.to_string();
-        match self.tables.get_mut(table_name_string.as_str()) {
-            None => Err(ExecutionError::TableNotExist(table_name_string)),
+        self.get_table(&table_name_string)
+    }
+
+    fn get_mut_table_by_sql_value(&mut self, table_name: &SqlValue) -> Result<&mut Table, ExecutionError> {
+        let table_name_string = table_name.to_string();
+        self.get_mut_table(&table_name_string)
+    }
+
+    fn get_mut_table(&mut self, table_name: &str) -> Result<&mut Table, ExecutionError> {
+        match self.tables.get_mut(table_name) {
+            None => Err(ExecutionError::TableNotExist(table_name.to_string())),
+            Some(existing_table) => Ok(existing_table),
+        }
+    }
+
+    fn get_table(&self, table_name: &str) -> Result<&Table, ExecutionError> {
+        match self.tables.get(table_name) {
+            None => Err(ExecutionError::TableNotExist(table_name.to_string())),
             Some(existing_table) => Ok(existing_table),
         }
     }

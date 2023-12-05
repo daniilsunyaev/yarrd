@@ -22,9 +22,9 @@ pub struct HashIndex {
 }
 
 impl HashIndex {
-    pub fn new(tables_dir: &Path, table_name: &str, name: String, column_number: usize) -> Result<HashIndex, HashIndexError> {
-        let hash_index_filepath = Self::build_hash_index_filepath(tables_dir, table_name, column_number);
-        let swap_filepath = Self::build_swap_hash_index_filepath(tables_dir, table_name, column_number);
+    pub fn new(tables_dir: &Path, table_name: &str, name: String) -> Result<HashIndex, HashIndexError> {
+        let hash_index_filepath = Self::build_hash_index_filepath(tables_dir, table_name, name.as_str());
+        let swap_filepath = Self::build_swap_hash_index_filepath(tables_dir, table_name, name.as_str());
 
         let hash_index_file = OpenOptions::new()
             .read(true)
@@ -91,9 +91,32 @@ impl HashIndex {
     }
 
     pub fn destroy(self) -> Result<(), HashIndexError> {
-        fs::remove_file(self.swap_hash_index_filepath)?;
+        self.drop_swap_file_if_present()?;
         fs::remove_file(self.hash_index_filepath)?;
         Ok(())
+    }
+
+    pub fn adjust_filepaths(&mut self, new_table_name: &str, tables_dir: &Path) -> Result<(), HashIndexError> {
+        self.drop_swap_file_if_present()?;
+
+        let new_hash_index_filepath = Self::build_hash_index_filepath(tables_dir, new_table_name, &self.name);
+        let new_swap_filepath = Self::build_swap_hash_index_filepath(tables_dir, new_table_name, &self.name);
+
+        // TODO: this should be rollbackable via cascade file manager
+        fs::rename(self.hash_index_filepath.as_path(), new_hash_index_filepath.as_path())?;
+
+        self.hash_index_filepath = new_hash_index_filepath;
+        self.swap_hash_index_filepath = new_swap_filepath;
+
+        Ok(())
+    }
+
+    fn drop_swap_file_if_present(&self) -> Result<(), HashIndexError> {
+        match fs::remove_file(self.swap_hash_index_filepath.as_path()) {
+            Ok(()) => Ok(()),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(e) => return Err(e.into()),
+        }
     }
 
     fn insert_row_to_file(file: &File, hashed_value: u64, row_id: u64, base_buckets_count: usize) -> Result<(), HashIndexError> {
@@ -196,16 +219,15 @@ impl HashIndex {
         hasher.finish()
     }
 
-    // TODO: maybe use index name instead?
-    fn build_hash_index_filepath(tables_dir: &Path, table_name: &str, column_number: usize) -> PathBuf {
+    fn build_hash_index_filepath(tables_dir: &Path, table_name: &str, index_name: &str) -> PathBuf {
         let mut filepath = tables_dir.to_path_buf();
-        filepath.push(format!("{}-{}.hash", table_name, column_number));
+        filepath.push(format!("{}-{}.hash", table_name, index_name));
         filepath
     }
 
-    fn build_swap_hash_index_filepath(tables_dir: &Path, table_name: &str, column_number: usize) -> PathBuf {
+    fn build_swap_hash_index_filepath(tables_dir: &Path, table_name: &str, index_name: &str) -> PathBuf {
         let mut filepath = tables_dir.to_path_buf();
-        filepath.push(format!("{}-{}-swap.hash", table_name, column_number));
+        filepath.push(format!("{}-{}-swap.hash", table_name, index_name));
         filepath
     }
 }
@@ -221,8 +243,8 @@ mod tests {
         s.finish()
     }
 
-    fn create_index_file(table_name: &str, column_number: usize) -> (TempFile, PathBuf) {
-        let index_file = TempFile::new(format!("{}-{}.hash", table_name, column_number).as_str()).unwrap();
+    fn create_index_file(table_name: &str, index_name: &str) -> (TempFile, PathBuf) {
+        let index_file = TempFile::new(format!("{}-{}.hash", table_name, index_name).as_str()).unwrap();
         let table_file_name = "users.table";
         let mut tables_dir_path = index_file.path().to_path_buf();
         tables_dir_path.pop();
@@ -232,13 +254,13 @@ mod tests {
 
     #[test]
     fn create_index_does_not_panic() {
-        let (_index_file, tables_dir_path) = create_index_file("users", 8);
-        HashIndex::new(&tables_dir_path, "users", "name".to_string(), 8).expect("cannot create index from file");
+        let (_index_file, tables_dir_path) = create_index_file("users", "u8");
+        HashIndex::new(&tables_dir_path, "users", "name".to_string()).expect("cannot create index from file");
     }
 
     #[test]
     fn find_row_ids() {
-        let (index_file, tables_dir_path) = create_index_file("users", 2);
+        let (index_file, tables_dir_path) = create_index_file("users", "u_index_2");
 
         let hash_1 = calculate_hash(&1i64).to_le_bytes();
         let hash_john = calculate_hash(&"john").to_le_bytes();
@@ -263,7 +285,7 @@ mod tests {
         index_file.write_bytes(&contents)
             .expect("seed contents should be writable to index file");
 
-        let index = HashIndex::new(tables_dir_path.as_path(), "users", "i_name".to_string(), 2)
+        let index = HashIndex::new(tables_dir_path.as_path(), "users", "u_index_2".to_string())
             .expect("hash index should be creatable from seed file");
 
         assert_eq!(index.find_row_ids(&SqlValue::Integer(1)).next().unwrap().unwrap(), 3u64);
@@ -273,7 +295,7 @@ mod tests {
 
     #[test]
     fn insert_row_causing_overflow() {
-        let (index_file, tables_dir_path) = create_index_file("users", 2);
+        let (index_file, tables_dir_path) = create_index_file("users", "i_name");
 
         let hash_5 = calculate_hash(&5i64).to_le_bytes(); // in case of 4 buckets, hash of 5 falls to first bucket
         let mut contents: Vec<u8> = vec![];
@@ -290,7 +312,7 @@ mod tests {
         index_file.write_bytes(&contents)
             .expect("seed contents should be writable to index file");
 
-        let mut index = HashIndex::new(tables_dir_path.as_path(), "users", "i_name".to_string(), 2)
+        let mut index = HashIndex::new(tables_dir_path.as_path(), "users", "i_name".to_string())
             .expect("hash index should be creatable from seed file");
 
         assert_eq!(index.insert_row(&SqlValue::Integer(5), 999, 28).is_ok(), true);
@@ -309,7 +331,7 @@ mod tests {
 
     #[test]
     fn insert_row_causing_index_recreation() {
-        let (index_file, tables_dir_path) = create_index_file("users", 2);
+        let (index_file, tables_dir_path) = create_index_file("users", "u2");
 
         let hash_1 = calculate_hash(&1i64).to_le_bytes();
         let mut contents: Vec<u8> = vec![];
@@ -326,7 +348,7 @@ mod tests {
         index_file.write_bytes(&contents)
             .expect("seed contents should be writable to index file");
 
-        let mut index = HashIndex::new(tables_dir_path.as_path(), "users", "users-2-i".to_string(), 2)
+        let mut index = HashIndex::new(tables_dir_path.as_path(), "users", "u2".to_string())
             .expect("hash index should be creatable from seed file");
 
         assert_eq!(index.insert_row(&SqlValue::Integer(1), 999, 28).is_ok(), true);
@@ -341,7 +363,7 @@ mod tests {
 
     #[test]
     fn update_and_delete_row() {
-        let (index_file, tables_dir_path) = create_index_file("users", 1);
+        let (index_file, tables_dir_path) = create_index_file("users", "ui1");
 
         let hash_1 = calculate_hash(&1i64).to_le_bytes();
         let mut contents: Vec<u8> = vec![];
@@ -358,7 +380,7 @@ mod tests {
         index_file.write_bytes(&contents)
             .expect("seed contents should be writable to index file");
 
-        let index = HashIndex::new(tables_dir_path.as_path(), "users", "users_1_i".to_string(), 1)
+        let index = HashIndex::new(tables_dir_path.as_path(), "users", "ui1".to_string())
             .expect("hash index should be creatable from seed file");
 
         assert_eq!(index.update_row(1, &SqlValue::Integer(1), &SqlValue::Integer(3)).is_ok(), true);
