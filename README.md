@@ -113,7 +113,7 @@ Close database connection and exit from cmd interface.
 
 Querying syntax is similar to sql, but have no semicolon at the end.
 
-Supported statemes: `CREATE TABLE`, `DROP TABLE`, `INSERT INTO`, `SELECT`, `UPDATE`, `DELETE FROM`, `ALTER TABLE`, `VACUUM`.
+Supported statemes: `CREATE TABLE`, `CREATE INDEX`, `DROP TABLE`, `DROP INDEX`, `INSERT INTO`, `SELECT`, `UPDATE`, `DELETE FROM`, `ALTER TABLE`, `REINDEX` `VACUUM`.
 Supported constraints: `NOT NULL`, `DEFAULT`.
 
 `CREATE TABLE users (id INT NOT NULL, name STRING, age INT NOT NULL)`
@@ -131,6 +131,12 @@ Supported constraints: `NOT NULL`, `DEFAULT`.
 `ALTER TABLE users ADD CONSTRAINT DEFAULT 20 (age)`
 
 `ALTER TABLE users DROP CONSTRAINT NOT NULL (age)`
+
+`CREATE INDEX ON users name`
+
+`REINDEX users`
+
+`REINDEX users name`
 
 `vacuum`
 
@@ -207,7 +213,7 @@ Supported constraints: `NOT NULL`, `DEFAULT`.
 - ✓ implement default constraint
 - ✓ implement check constraint
 - ✓ `SELECT id FROM users WHERE "users.name" = name` should not return all records
-- implement create index
+- ✓ implement create index
   - ✓ store hashtable for indexed keys at the hash file and allow to search through index
   - ✓ introduce overflow pages (handle multiple equal values)
   - ✓ increase index buckets count if rows / total hash space > 0.5
@@ -218,7 +224,7 @@ Supported constraints: `NOT NULL`, `DEFAULT`.
   - ✓ allow to create index on table, save index in schema
   - ✓ allow to drop index on table and drop indexes on drop table
   - ✓ adjust index on alter table (rename table, rename column, drop column, add column)
-  - implement REINDEX
+  - ✓ implement REINDEX
 - do not allow two columns with the same names in a table
 - implement unique constraint
 - introduce AND and allow WHERE to accept multiple conditions

@@ -166,6 +166,7 @@ impl Database {
             Command::DropTableColumn { table_name, column_name } => self.drop_table_column(table_name, column_name),
             Command::CreateIndex { table_name, index_name, column_name } => self.create_table_index(index_name, table_name, column_name),
             Command::DropIndex { table_name, index_name } => self.drop_table_index(index_name, table_name),
+            Command::Reindex { table_name, column_name } => self.reindex(&table_name, column_name.as_ref()),
             Command::VacuumTable { table_name } => self.vacuum_table(&table_name),
             Command::Void => Ok(None),
         }
@@ -434,6 +435,16 @@ impl Database {
         }
 
         self.swap_tables_and_drop_old_table(target_table_name, temp_new_table_name)
+    }
+
+    fn reindex(&mut self, table_name: &SqlValue, column_name: Option<&SqlValue>) -> Result<Option<QueryResult>, ExecutionError> {
+        let table = self.get_mut_table_by_sql_value(table_name)?;
+        match column_name {
+            Some(column_name) => table.reindex_column(column_name)?,
+            None => table.reindex()?,
+        }
+
+        Ok(None)
     }
 
     fn vacuum_table(&mut self, table_name: &SqlValue) -> Result<Option<QueryResult>, ExecutionError> {

@@ -85,6 +85,10 @@ pub enum Command {
         index_name: SqlValue,
         table_name: SqlValue,
     },
+    Reindex {
+        table_name: SqlValue,
+        column_name: Option<SqlValue>,
+    },
     VacuumTable {
         table_name: SqlValue,
     },
@@ -594,8 +598,8 @@ mod tests {
     }
 
     #[test]
-    fn create_table_with_index_multiple_insert_and_select_and_drop() {
-        let (db_file, mut database) = open_test_database();
+    fn create_table_with_index_multiple_insert_and_select_and_reindex_and_drop() {
+        let (_db_file, mut database) = open_test_database();
         let create_table = Command::CreateTable {
             table_name: SqlValue::Identificator("users".to_string()),
             columns: vec![
@@ -640,8 +644,19 @@ mod tests {
                 operator: CmpOperator::Equals,
             }),
         };
-        let select_result = database.execute(select_from_table);
-        assert!(matches!(select_result, Ok(Some(_))));
+        database.execute(select_from_table).expect("select should be successful");
+
+        let reindex = Command::Reindex {
+            table_name: SqlValue::Identificator("users".to_string()),
+            column_name: None,
+        };
+        database.execute(reindex).expect("reindex table should be successful");
+
+        let reindex = Command::Reindex {
+            table_name: SqlValue::Identificator("users".to_string()),
+            column_name: Some(SqlValue::Identificator("id".to_string())),
+        };
+        database.execute(reindex).expect("reindex table column should be successful");
 
         let drop_table = Command::DropTable {
             table_name: SqlValue::Identificator("users".to_string()),
