@@ -39,6 +39,7 @@ pub enum Token {
     Constraint,
     Default,
     Check,
+    Reindex,
     Vacuum,
     IntegerType, // TODO: maybe extract types to separate enum
     StringType,
@@ -82,6 +83,7 @@ impl fmt::Display for Token {
             Self::Values => "VALUES",
             Self::Is => "IS",
             Self::Not => "NOT",
+            Self::Reindex => "REINDEX",
             Self::Vacuum => "VACUUM",
             Self::Constraint => "CONSTRAINT",
             Self::Default => "DEFAULT",
@@ -236,6 +238,7 @@ fn parse_token(str_token: &str) -> Token {
         "values" => Token::Values,
         "is" => Token::Is,
         "not" => Token::Not,
+        "reindex" => Token::Reindex,
         "vacuum" => Token::Vacuum,
         "constraint" => Token::Constraint,
         "default" => Token::Default,
@@ -301,13 +304,13 @@ mod tests {
 
     #[test]
     fn token_qoutes_parse() {
-        let valid_input = "CrEAte vacuum (row NULL \"column, type\" constraint int -421 string 43.2552 \" ; \" on";
+        let valid_input = "CrEAte vacuum Reindex (row NULL \"column, type\" constraint int -421 string 43.2552 \" ; \" on";
 
         assert!(to_tokens(valid_input).is_ok());
         assert_eq!(
             to_tokens(valid_input).unwrap(),
             vec![
-                Token::Create, Token::Vacuum, Token::LeftParenthesis, Token::Value(SqlValue::Identificator("row".into())),
+                Token::Create, Token::Vacuum, Token::Reindex, Token::LeftParenthesis, Token::Value(SqlValue::Identificator("row".into())),
                 Token::Value(SqlValue::Null), Token::Value(SqlValue::String("column, type".to_string())),
                 Token::Constraint, Token::IntegerType, Token::Value(SqlValue::Integer(-421)), Token::StringType,
                 Token::Value(SqlValue::Float(43.2552)), Token::Value(SqlValue::String(" ; ".into())), Token::On
