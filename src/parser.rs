@@ -14,6 +14,7 @@ use update::parse_update_statement;
 use select::parse_select_statement;
 use delete::parse_delete_statement;
 use alter::parse_alter_statement;
+use reindex::parse_reindex_statement;
 use vacuum::parse_vacuum_statement;
 use crate::parser::shared::{parse_column_definition, parse_index_name};
 
@@ -25,6 +26,7 @@ mod where_clause;
 mod update;
 mod delete;
 mod alter;
+mod reindex;
 mod vacuum;
 mod error;
 mod shared;
@@ -52,6 +54,7 @@ where
         Some(Token::Update) => parse_update_statement(&mut token)?,
         Some(Token::Delete) => parse_delete_statement(&mut token)?,
         Some(Token::Alter) => parse_alter_statement(&mut token)?,
+        Some(Token::Reindex) => parse_reindex_statement(&mut token)?,
         Some(Token::Vacuum) => parse_vacuum_statement(&mut token)?,
         Some(command) => return Err(ParserError::UnknownCommand(command)),
         _ => return Ok(Command::Void),
@@ -447,20 +450,38 @@ mod tests {
     #[test]
     fn drop_index() {
         let input = vec![
-                Token::Drop, Token::Index,
-                Token::Value(SqlValue::Identificator("index_name".into())),
-                Token::On, Token::Value(SqlValue::Identificator("table_name".into())),
-           ];
+            Token::Drop, Token::Index,
+            Token::Value(SqlValue::Identificator("index_name".into())),
+            Token::On, Token::Value(SqlValue::Identificator("table_name".into())),
+        ];
 
         assert!(parse_statement(input.iter()).is_ok());
     }
 
     #[test]
+    fn reindex_table() {
+        let input = vec![
+            Token::Reindex,
+            Token::Value(SqlValue::Identificator("table_name".into())),
+        ];
+
+        assert!(parse_statement(input.iter()).is_ok());
+
+        let another_valid_input = vec![
+            Token::Reindex,
+            Token::Value(SqlValue::Identificator("table_name".into())),
+            Token::Value(SqlValue::Identificator("column_name".into())),
+        ];
+
+        assert!(parse_statement(another_valid_input.iter()).is_ok());
+    }
+
+    #[test]
     fn vacuum_table() {
         let input = vec![
-                Token::Vacuum,
-                Token::Value(SqlValue::Identificator("table_name".into())),
-           ];
+            Token::Vacuum,
+            Token::Value(SqlValue::Identificator("table_name".into())),
+        ];
 
         assert!(parse_statement(input.iter()).is_ok());
     }

@@ -399,7 +399,7 @@ impl Table {
 
         let index = HashIndex::new(tables_dir, self.name(), index_name)?;
         self.column_indexes[column_number] = Some(index);
-        self.reindex_column(column_number)
+        self.reindex_column_by_number(column_number)
     }
 
     pub fn destroy(mut self) -> Result<(), TableError> {
@@ -504,15 +504,21 @@ impl Table {
         self.reindex()
     }
 
-    fn reindex(&mut self) -> Result<(), TableError> {
-        self.reindex_columns((0..self.column_indexes.len()).collect())
+    pub fn reindex(&mut self) -> Result<(), TableError> {
+        self.reindex_columns_by_number((0..self.column_indexes.len()).collect())
     }
 
-    fn reindex_column(&mut self, column_number: usize) -> Result<(), TableError> {
-        self.reindex_columns(vec![column_number])
+    pub fn reindex_column(&mut self, column_name: &SqlValue) -> Result<(), TableError> {
+        let column_number = self.column_number_result(&column_name.to_string())?;
+
+        self.reindex_columns_by_number(vec![column_number])
     }
 
-    fn reindex_columns(&mut self, column_numbers: Vec<usize>) -> Result<(), TableError> {
+    fn reindex_column_by_number(&mut self, column_number: usize) -> Result<(), TableError> {
+        self.reindex_columns_by_number(vec![column_number])
+    }
+
+    fn reindex_columns_by_number(&mut self, column_numbers: Vec<usize>) -> Result<(), TableError> {
         let mut indexed_column_numbers = vec![];
 
         for column_number in column_numbers {
@@ -520,6 +526,10 @@ impl Table {
                 index.clear()?;
                 indexed_column_numbers.push(column_number);
             }
+        }
+
+        if indexed_column_numbers.is_empty() {
+            return Ok(())
         }
 
         Self::seq_scan(&mut self.pager)

@@ -159,6 +159,7 @@ impl HashIndex {
 
     pub fn clear(&mut self) -> Result<(), HashIndexError> {
         self.hash_index_file.set_len(0)?;
+        self.hash_index_file.set_len((self.base_buckets_count * hash_bucket::BUCKET_SIZE) as u64)?;
         self.hash_index_file.rewind()?;
         Ok(())
     }
@@ -245,7 +246,6 @@ mod tests {
 
     fn create_index_file(table_name: &str, index_name: &str) -> (TempFile, PathBuf) {
         let index_file = TempFile::new(format!("{}-{}.hash", table_name, index_name).as_str()).unwrap();
-        let table_file_name = "users.table";
         let mut tables_dir_path = index_file.path().to_path_buf();
         tables_dir_path.pop();
 
